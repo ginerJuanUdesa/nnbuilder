@@ -1,0 +1,55 @@
+/* Canvas elements */
+const canvas     = document.getElementById('grid');
+const ctx        = canvas.getContext('2d');
+const nodeCanvas = document.getElementById('nodes');
+const nodeCtx    = nodeCanvas.getContext('2d');
+const ghostEl    = document.getElementById('ghost');
+
+/* Viewport */
+let W, H;
+let camX = 0, camY = 0;
+let zoom = 1;
+let time = 0;
+
+/* Render flags */
+let gridDirty     = true;
+let nodesDirty    = true;
+let lastFrameTime = 0;
+let gridCanvas    = null;
+
+/* Graph data */
+const layers      = [];
+const connections = [];
+let variables     = [];
+let nextId        = 1;
+
+/* Selection */
+let selectedLayerId = null;
+let selectedConnIdx = -1;
+let mouseDownDist   = 0;
+let mouseDownX = 0, mouseDownY = 0;
+
+/* Connection mode */
+let connectionMode = false;
+let connectStartId = null;
+let connectMouseX  = 0, connectMouseY = 0;
+
+/* Palette drag */
+let paletteDragType   = null;
+let paletteDragOffset = { x: 0, y: 0 };
+
+/* Pan drag */
+let panDragging = false;
+let panStartX = 0, panStartY = 0, panCamX = 0, panCamY = 0;
+
+/* Layer drag */
+let layerDragging  = false;
+let layerDragId    = null;
+let layerDragOffX  = 0, layerDragOffY  = 0;
+let layerDragOrigX = 0, layerDragOrigY = 0;
+
+/* Copy/paste */
+let clipboard = null;
+
+/* Visibility */
+let visible = true;
