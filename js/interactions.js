@@ -140,6 +140,12 @@ window.addEventListener('mouseup', e => {
         keepdim:     paletteDragType === 'mean'    ? false    : undefined,
         start_dim:   paletteDragType === 'flatten' ? 0        : undefined,
         end_dim:     paletteDragType === 'flatten' ? -1       : undefined,
+        out_channels: paletteDragType === 'conv'  ? 16       : undefined,
+        kernel_size:  paletteDragType === 'conv'  ? 3        : undefined,
+        stride:       paletteDragType === 'conv'  ? 1        : undefined,
+        padding:      paletteDragType === 'conv'  ? 0        : undefined,
+        dilation:     paletteDragType === 'conv'  ? 1        : undefined,
+        groups:       paletteDragType === 'conv'  ? 1        : undefined,
         outputShape: paletteDragType === 'output'  ? null     : undefined,
       });
       selectedLayerId = layers[layers.length - 1].id;

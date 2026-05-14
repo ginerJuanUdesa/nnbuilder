@@ -85,7 +85,7 @@ function isHologramBlocked(layer) {
     if (other.id === layer.id) continue;
     const ot = layerTypes[other.type];
     const xOverlap = Math.abs(other.x - layer.x) < (t.w + ot.w) / 2;
-    const yOverlap = other.y + ot.h / 2 > boxTop - 200 && other.y - ot.h / 2 < boxTop;
+    const yOverlap = other.y + ot.h / 2 > boxTop - 100 && other.y - ot.h / 2 < boxTop;
     if (xOverlap && yOverlap) return true;
   }
   return false;
@@ -94,10 +94,11 @@ function isHologramBlocked(layer) {
 function canConnect(from, to) {
   if (from.id === to.id) return false;
   return (
-    (from.type === 'input'   && ['linear', 'mean', 'flatten', 'output'].includes(to.type)) ||
-    (from.type === 'linear'  && ['linear', 'mean', 'flatten', 'output'].includes(to.type)) ||
-    (from.type === 'mean'    && ['linear', 'mean', 'flatten', 'output'].includes(to.type)) ||
-    (from.type === 'flatten' && ['linear', 'mean', 'output'].includes(to.type))
+    (from.type === 'input'   && ['linear', 'mean', 'flatten', 'output', 'conv'].includes(to.type)) ||
+    (from.type === 'linear'  && ['linear', 'mean', 'flatten', 'output', 'conv'].includes(to.type)) ||
+    (from.type === 'mean'    && ['linear', 'mean', 'flatten', 'output', 'conv'].includes(to.type)) ||
+    (from.type === 'flatten' && ['linear', 'mean', 'output', 'conv'].includes(to.type)) ||
+    (from.type === 'conv'    && ['linear', 'mean', 'flatten', 'output', 'conv'].includes(to.type))
   );
 }
 

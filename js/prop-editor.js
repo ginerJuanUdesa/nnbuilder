@@ -6,7 +6,10 @@ const peClose    = document.getElementById('pe-close');
 
 function openPropEditor(layer) {
   const t = layerTypes[layer.type];
-  peTitle.textContent = layer.type.toUpperCase() + ' LAYER';
+  const displayName = layer.type === 'conv'
+    ? `CONV${layer.ndim !== undefined ? layer.ndim : 2}D`
+    : layer.type.toUpperCase();
+  peTitle.textContent = displayName + ' LAYER';
   peTitle.style.color = t.color;
   peTitle.style.textShadow = `0 0 6px ${t.color}`;
   propEditor.style.setProperty('--pe-color', t.color);
@@ -80,6 +83,7 @@ function openPropEditor(layer) {
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label">IN FEATURES</span><span style="color:${mismatch ? '#ff4444' : '#ffc800'};font-size:12px;font-family:'Courier New',monospace;">${inF}</span></div>
       <div class="pe-row" style="margin-top:6px;"><span class="pe-label">OUT FEATURES</span><input class="pe-input" type="text" value="${layer.units || 128}" id="pe-units"></div>
+      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">BIAS</span><input type="checkbox" id="pe-bias" ${layer.bias !== false ? 'checked' : ''} style="width:16px;height:16px;cursor:pointer;accent-color:var(--pe-color,#0088ff);"></div>
       <div class="pe-row" style="margin-top:8px;"><span class="pe-label">FUNCTION</span><div class="pe-fn-btn" id="pe-fn-btn">${curAct} ▾</div></div>
       <div class="pe-fn-panel" id="pe-fn-panel" style="display:none;"><input class="pe-fn-search" type="text" placeholder="search..." id="pe-fn-search" autocomplete="off"><div id="pe-fn-list"></div></div>`;
     const input    = peBody.querySelector('#pe-units');
@@ -94,6 +98,13 @@ function openPropEditor(layer) {
         saveState();
       });
       setTimeout(() => input.focus(), 50);
+    }
+    const biasChk = peBody.querySelector('#pe-bias');
+    if (biasChk) {
+      biasChk.addEventListener('change', () => {
+        layer.bias = biasChk.checked;
+        saveState();
+      });
     }
     const FN_WINDOW = 5;
     let focusedFnIdx = -1;
@@ -191,6 +202,58 @@ function openPropEditor(layer) {
     sdInput.addEventListener('change', () => { layer.start_dim = parseInt(sdInput.value) || 0; saveState(); });
     edInput.addEventListener('change', () => { const v = parseInt(edInput.value); layer.end_dim = isNaN(v) ? -1 : v; saveState(); });
     setTimeout(() => sdInput.focus(), 50);
+
+  /* --- CONV --- */
+  } else if (layer.type === 'conv') {
+    if (layer.out_channels  === undefined) layer.out_channels  = 16;
+    if (layer.kernel_size   === undefined) layer.kernel_size   = 3;
+    if (layer.stride        === undefined) layer.stride        = 1;
+    if (layer.padding       === undefined) layer.padding       = 0;
+    if (layer.dilation      === undefined) layer.dilation      = 1;
+    if (layer.groups        === undefined) layer.groups        = 1;
+    if (layer.ndim          === undefined) layer.ndim          = 2;
+    const inc         = connections.filter(c => c.to === layer.id);
+    const src         = inc.length > 0 ? shapeCache[inc[inc.length - 1].from] : null;
+    const inShapeStr  = src ? `[${src.join(', ')}]` : '?';
+    const outShape    = shapeCache[layer.id];
+    const outShapeStr = outShape ? `[${outShape.join(', ')}]` : '?';
+    peBody.innerHTML  = `
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(0,204,221,0.4);">${inShapeStr} → ${outShapeStr}</span></div>
+      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIM</span>
+        <select class="pe-input" id="pe-ndim">
+          <option value="1" ${layer.ndim === 1 ? 'selected' : ''}>1D</option>
+          <option value="2" ${layer.ndim === 2 ? 'selected' : ''}>2D</option>
+          <option value="3" ${layer.ndim === 3 ? 'selected' : ''}>3D</option>
+        </select>
+      </div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">OUT CHANNELS</span><input class="pe-input" type="number" min="1" value="${layer.out_channels}" id="pe-out-ch"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">KERNEL SIZE</span><input class="pe-input" type="number" min="1" value="${layer.kernel_size}" id="pe-ks"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">STRIDE</span><input class="pe-input" type="number" min="1" value="${layer.stride}" id="pe-stride"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">PADDING</span><input class="pe-input" type="number" min="0" value="${layer.padding}" id="pe-pad"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">DILATION</span><input class="pe-input" type="number" min="1" value="${layer.dilation}" id="pe-dil"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">GROUPS</span><input class="pe-input" type="number" min="1" value="${layer.groups}" id="pe-grp"></div>`;
+    const fields = [
+      { id: 'pe-ndim',    key: 'ndim', select: true },
+      { id: 'pe-out-ch',  key: 'out_channels' },
+      { id: 'pe-ks',      key: 'kernel_size' },
+      { id: 'pe-stride',  key: 'stride' },
+      { id: 'pe-pad',     key: 'padding' },
+      { id: 'pe-dil',     key: 'dilation' },
+      { id: 'pe-grp',     key: 'groups' },
+    ];
+    fields.forEach(f => {
+      const inp = peBody.querySelector(`#${f.id}`);
+      inp.addEventListener('change', () => {
+        const raw = inp.value.trim();
+        if (f.select) {
+          layer[f.key] = parseInt(raw);
+        } else {
+          layer[f.key] = (raw !== '' && !isNaN(raw)) ? Math.max(1, parseInt(raw) || 1) : raw;
+        }
+        saveState();
+      });
+    });
+    setTimeout(() => peBody.querySelector('#pe-out-ch').focus(), 50);
 
   /* --- SHARED_DENSE --- */
   } else if (layer.type === 'shared_dense') {

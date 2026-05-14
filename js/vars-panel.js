@@ -15,6 +15,11 @@ function renderVarsPanel() {
   });
 }
 
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  document.body.classList.toggle('white-mode');
+  gridDirty = true;
+});
+
 document.getElementById('vars-add').addEventListener('click', () => {
   variables.push({ name: '', value: '1' });
   saveState();

@@ -13,19 +13,24 @@ function buildGrid() {
   const eGX = Math.ceil(brx  / gridSpacing) + 1;
   const sGY = Math.floor(tly / gridSpacing) - 1;
   const eGY = Math.ceil(bry  / gridSpacing) + 1;
+  const white = document.body.classList.contains('white-mode');
 
-  octx.strokeStyle = 'rgba(0, 255, 136, 0.06)'; octx.lineWidth = 0.5; octx.beginPath();
+  const minorColor = white ? 'rgba(0, 0, 0, 0.06)' : 'rgba(0, 255, 136, 0.06)';
+  const minorColor2 = white ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 136, 255, 0.15)';
+  const minorColor3 = white ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 136, 255, 0.3)';
+
+  octx.strokeStyle = minorColor; octx.lineWidth = 0.5; octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
   for (let gy = sGY; gy <= eGY; gy++) { const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
   octx.stroke();
 
-  octx.strokeStyle = 'rgba(0, 136, 255, 0.15)'; octx.lineWidth = 1; octx.beginPath();
+  octx.strokeStyle = minorColor2; octx.lineWidth = 1; octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { if (gx % majorEvery !== 0) continue; const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
   for (let gy = sGY; gy <= eGY; gy++) { if (gy % majorEvery !== 0) continue; const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
   octx.stroke();
 
   const superEvery = majorEvery * 5;
-  octx.strokeStyle = 'rgba(0, 136, 255, 0.3)'; octx.lineWidth = 1.5; octx.beginPath();
+  octx.strokeStyle = minorColor3; octx.lineWidth = 1.5; octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { if (gx % superEvery !== 0) continue; const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
   for (let gy = sGY; gy <= eGY; gy++) { if (gy % superEvery !== 0) continue; const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
   octx.stroke();
@@ -37,8 +42,8 @@ function buildGrid() {
       if (gy % majorEvery !== 0) continue;
       const [sx, sy] = worldToScreen(gx * gridSpacing, gy * gridSpacing);
       const h = hash(gx, gy);
-      const alpha = 0.15 + (((h >> 24) & 0xFF) / 255) * 0.35;
-      octx.fillStyle = `rgba(0, 255, 136, ${alpha})`;
+      const alpha = (white ? 0.06 : 0.15) + (((h >> 24) & 0xFF) / 255) * (white ? 0.15 : 0.35);
+      octx.fillStyle = white ? `rgba(0, 0, 0, ${alpha})` : `rgba(0, 255, 136, ${alpha})`;
       octx.fillRect(sx - dotSize / 2, sy - dotSize / 2, dotSize, dotSize);
     }
   }
@@ -96,17 +101,31 @@ function drawPath(pts, color, glow, width, dash) {
 function drawLayerBox(layer, cx, cy) {
   const t    = layerTypes[layer.type];
   const w    = t.w * zoom, h = t.h * zoom;
-  const pulse      = Math.sin(time * 2 + layer.id) * 0.15 + 0.85;
+  const pulse      = Math.sin(time * 2 + layer.id) * 0.1 + 0.9;
   const isSelected = layer.id === selectedLayerId;
   const alpha      = isSelected ? 1 : pulse;
   const x = cx - w / 2, y = cy - h / 2;
+  const white = document.body.classList.contains('white-mode');
 
-  nodeCtx.fillStyle = t.bg;
+  const tColor = white && t.lightColor ? t.lightColor : t.color;
+  let fillStyle = t.bg;
+  if (white) {
+    const bgMap = {
+      input:   'rgba(210, 242, 224, 0.97)',
+      linear:  'rgba(210, 228, 255, 0.97)',
+      flatten: 'rgba(255, 242, 195, 0.97)',
+      output:  'rgba(238, 210, 255, 0.97)',
+      mean:    'rgba(255, 228, 200, 0.97)',
+      conv:    'rgba(200, 238, 244, 0.97)',
+    };
+    fillStyle = bgMap[layer.type] || fillStyle;
+  }
+  nodeCtx.fillStyle = fillStyle;
   nodeCtx.fillRect(x, y, w, h);
 
   const borderColor = isSelected
-    ? `rgba(255, 255, 255, ${alpha})`
-    : `rgba(${hexToRgb(t.color)}, ${alpha})`;
+    ? `rgba(${hexToRgb(tColor)}, ${alpha})`
+    : white ? `rgba(${hexToRgb(tColor)}, ${alpha * 0.8})` : `rgba(${hexToRgb(tColor)}, ${Math.max(alpha, 0.85)})`;
   nodeCtx.strokeStyle = borderColor;
   nodeCtx.lineWidth   = isSelected ? 2.5 : 1.5;
   nodeCtx.strokeRect(x, y, w, h);
@@ -123,18 +142,28 @@ function drawLayerBox(layer, cx, cy) {
   if (zoom > 0.15) {
     const fontSize = Math.max(9, Math.min(14, 14 * zoom));
     nodeCtx.font         = `bold ${fontSize}px Courier New`;
-    nodeCtx.fillStyle    = borderColor;
+    nodeCtx.fillStyle    = white ? `rgba(${hexToRgb(tColor)}, ${alpha})` : borderColor;
     nodeCtx.textAlign    = 'center';
     nodeCtx.textBaseline = 'middle';
-    nodeCtx.fillText(layer.type.toUpperCase(), cx, cy - (zoom > 0.4 ? 6 * zoom : 0));
+    const label = layer.type === 'conv'
+      ? `CONV${layer.ndim !== undefined ? layer.ndim : 2}D`
+      : layer.type.toUpperCase();
+    nodeCtx.fillText(label, cx, cy - (zoom > 0.4 ? 6 * zoom : 0));
 
     if (zoom > 0.4) {
       const subSize = Math.max(7, 9 * zoom);
-      nodeCtx.font      = `${subSize}px Courier New`;
-      nodeCtx.fillStyle = `rgba(${hexToRgb(t.color)}, ${0.5 * alpha})`;
+      const subFontStr = `${white ? 'bold ' : ''}${subSize}px Courier New`;
+      nodeCtx.font      = subFontStr;
+      nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, ${0.55 * alpha})`;
+
+      const boxHalfW = t.w / 2 * zoom - 6; // 6px padding on each side
+      const baseY = cy + 10 * zoom;
 
       if (layer.type === 'input') {
-        nodeCtx.fillText((layer.dims || []).join('x') || '?', cx, cy + 10 * zoom);
+        const text = (layer.dims || []).join('x') || '?';
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'linear') {
         const inc      = connections.filter(c => c.to === layer.id);
@@ -142,18 +171,39 @@ function drawLayerBox(layer, cx, cy) {
         const inF      = srcShape ? srcShape[srcShape.length - 1] : '?';
         const prefix   = inc.length > 1 ? `${inc.length}× ` : '';
         const actTag   = layer.activation && layer.activation !== 'none' ? ` · ${layer.activation}` : '';
-        nodeCtx.fillText(`${prefix}${inF} → ${layer.units || '?'}${actTag}`, cx, cy + 10 * zoom);
+        const text = `${prefix}${inF} → ${layer.units || '?'}${actTag}`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'shared_dense') {
         const inc = connections.filter(c => c.to === layer.id);
         const inF = inc.length > 0 ? getLayerOutputLabel(inc[0].from) : '?';
-        nodeCtx.fillText(`${inc.length}×[${inF}→${layer.units || '?'}]`, cx, cy + 10 * zoom);
+        const text = `${inc.length}×[${inF}→${layer.units || '?'}]`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'flatten') {
         const outShape = shapeCache[layer.id];
         const sd = layer.start_dim !== undefined ? layer.start_dim : 0;
         const ed = layer.end_dim   !== undefined ? layer.end_dim   : -1;
-        nodeCtx.fillText(outShape ? `[${outShape.join(', ')}]` : `${sd} : ${ed}`, cx, cy + 10 * zoom);
+        const text = outShape ? `[${outShape.join(', ')}]` : `${sd} : ${ed}`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
+
+      } else if (layer.type === 'conv') {
+        const outShape = shapeCache[layer.id];
+        const oc = layer.out_channels || '?';
+        const rawKs = layer.kernel_size;
+        const ksStr = Array.isArray(rawKs) ? rawKs.join(', ') : (rawKs || '?');
+        const ndim = layer.ndim !== undefined ? layer.ndim : 2;
+        const convLabel = `conv${ndim}d`;
+        const text = outShape ? `${convLabel} c=${oc} k=${ksStr} → [${outShape.join(',')}]` : `${convLabel} c=${oc} k=${ksStr}`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'mean') {
         const outShape = shapeCache[layer.id];
@@ -161,26 +211,47 @@ function drawLayerBox(layer, cx, cy) {
           ? layer.reduce_dim.join(',')
           : (layer.reduce_dim !== undefined ? String(layer.reduce_dim) : '0');
         const kdStr    = layer.keepdim ? ' kd' : '';
-        nodeCtx.fillText(
-          outShape ? `dim=${dimStr}${kdStr} → [${outShape.join(', ')}]` : `dim=${dimStr}${kdStr}`,
-          cx, cy + 10 * zoom
-        );
+        const text = outShape ? `dim=${dimStr}${kdStr} → [${outShape.join(', ')}]` : `dim=${dimStr}${kdStr}`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'output') {
         const shape = layer.outputShape;
-        nodeCtx.fillText(shape ? `shape: [${shape.join(', ')}]` : '[ NO CONNECTION ]', cx, cy + 10 * zoom);
+        const text = shape ? `shape: [${shape.join(', ')}]` : '[ NO CONNECTION ]';
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
       }
     }
   }
 
   // port dots
+
+  /* --- Helper: measure → wrap text to fit box width --- */
+  function wrapText(text, x, y, maxW, fontStr) {
+    nodeCtx.font = fontStr;
+    const lines = [];
+    const words = text.split(' ');
+    let line = '';
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (nodeCtx.measureText(test).width > maxW && line) {
+        lines.push(line); line = w;
+      } else { line = test; }
+    }
+    if (line) lines.push(line);
+    const lineHeight = parseFloat(fontStr) * 1.25;
+    lines.forEach((l, i) => nodeCtx.fillText(l, x, y + i * lineHeight));
+  }
+
   if (zoom > 0.3) {
     const pr = Math.max(2, 3 * zoom);
     nodeCtx.beginPath(); nodeCtx.arc(x, cy, pr, 0, Math.PI * 2);
-    nodeCtx.fillStyle = `rgba(${hexToRgb(t.color)}, ${0.7 * alpha})`; nodeCtx.fill();
+    nodeCtx.fillStyle = white ? `rgba(${hexToRgb(tColor)}, ${0.6 * alpha})` : `rgba(${hexToRgb(tColor)}, ${0.7 * alpha})`; nodeCtx.fill();
     if (layer.type !== 'output') {
       nodeCtx.beginPath(); nodeCtx.arc(x + w, cy, pr, 0, Math.PI * 2);
-      nodeCtx.fillStyle = `rgba(${hexToRgb(t.color)}, ${0.7 * alpha})`; nodeCtx.fill();
+      nodeCtx.fillStyle = white ? `rgba(${hexToRgb(tColor)}, ${0.6 * alpha})` : `rgba(${hexToRgb(tColor)}, ${0.7 * alpha})`; nodeCtx.fill();
     }
   }
 
@@ -194,7 +265,7 @@ function drawLayerBox(layer, cx, cy) {
       nodeCtx.beginPath(); nodeCtx.arc(x - badgeSize - 2, badgeY + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
       nodeCtx.fillStyle = `rgba(${hexToRgb('#ff4444')}, ${0.8 * alpha})`; nodeCtx.fill();
       if (zoom > 0.4) {
-        nodeCtx.font = `bold ${Math.max(6, 8 * zoom)}px Courier New`; nodeCtx.fillStyle = '#fff';
+        nodeCtx.font = `bold ${Math.max(6, 8 * zoom)}px Courier New`; nodeCtx.fillStyle = white ? '#222' : '#fff';
         nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
         nodeCtx.fillText(inCount, x - badgeSize - 2, badgeY + badgeSize / 2);
       }
@@ -203,7 +274,7 @@ function drawLayerBox(layer, cx, cy) {
       nodeCtx.beginPath(); nodeCtx.arc(x + w + badgeSize + 2, badgeY + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
       nodeCtx.fillStyle = `rgba(${hexToRgb('#44ff44')}, ${0.8 * alpha})`; nodeCtx.fill();
       if (zoom > 0.4) {
-        nodeCtx.font = `bold ${Math.max(6, 8 * zoom)}px Courier New`; nodeCtx.fillStyle = '#fff';
+        nodeCtx.font = `bold ${Math.max(6, 8 * zoom)}px Courier New`; nodeCtx.fillStyle = white ? '#222' : '#fff';
         nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
         nodeCtx.fillText(outCount, x + w + badgeSize + 2, badgeY + badgeSize / 2);
       }
@@ -212,9 +283,9 @@ function drawLayerBox(layer, cx, cy) {
 }
 
 /* --- CSV hologram for INPUT layers --- */
-function drawCSVHologram(layer, cx, cy) {
+function drawCSVHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
-  nodeCtx.save(); nodeCtx.globalAlpha = 0.38;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
 
   const cols = 4, dataRows = 3;
   const cellW  = Math.max(28, 44 * zoom), cellH = Math.max(13, 17 * zoom);
@@ -224,13 +295,18 @@ function drawCSVHologram(layer, cx, cy) {
   const ty     = cy - boxH / 2 - tableH - Math.max(8, 14 * zoom);
   const flicker = 0.82 + Math.sin(time * 4.3 + layer.id * 1.7) * 0.09 + Math.sin(time * 11 + layer.id) * 0.04;
 
-  nodeCtx.save(); nodeCtx.shadowColor = '#00ff88'; nodeCtx.shadowBlur = 10 * zoom * flicker;
-  nodeCtx.fillStyle   = `rgba(0, 18, 12, ${0.82 * flicker})`; nodeCtx.fillRect(tx, ty, tableW, tableH);
-  nodeCtx.fillStyle   = `rgba(0, 255, 136, ${0.07 * flicker})`; nodeCtx.fillRect(tx, ty, tableW, cellH);
-  nodeCtx.strokeStyle = `rgba(0, 255, 136, ${0.55 * flicker})`; nodeCtx.lineWidth = 1; nodeCtx.strokeRect(tx, ty, tableW, tableH);
+  const g = white ? '80, 180, 100' : '0, 255, 136';
+  const bg = white ? `rgba(245, 255, 248, ${0.9 * flicker})` : `rgba(0, 18, 12, ${0.82 * flicker})`;
+  const hdrBg = white ? `rgba(80, 180, 100, ${0.06 * flicker})` : `rgba(0, 255, 136, ${0.07 * flicker})`;
+  const stroke = white ? `rgba(${g}, ${0.45 * flicker})` : `rgba(0, 255, 136, ${0.55 * flicker})`;
+
+  nodeCtx.save(); nodeCtx.shadowColor = white ? '#50b464' : '#00ff88'; nodeCtx.shadowBlur = 10 * zoom * flicker;
+  nodeCtx.fillStyle = bg; nodeCtx.fillRect(tx, ty, tableW, tableH);
+  nodeCtx.fillStyle = hdrBg; nodeCtx.fillRect(tx, ty, tableW, cellH);
+  nodeCtx.strokeStyle = stroke; nodeCtx.lineWidth = 1; nodeCtx.strokeRect(tx, ty, tableW, tableH);
   nodeCtx.restore();
 
-  nodeCtx.strokeStyle = `rgba(0, 255, 136, ${0.13 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.strokeStyle = white ? `rgba(${g}, ${0.1 * flicker})` : `rgba(0, 255, 136, ${0.13 * flicker})`; nodeCtx.lineWidth = 0.5;
   for (let r = 1; r <= dataRows; r++) { nodeCtx.beginPath(); nodeCtx.moveTo(tx, ty + cellH * r); nodeCtx.lineTo(tx + tableW, ty + cellH * r); nodeCtx.stroke(); }
   for (let c = 1; c < cols; c++)      { nodeCtx.beginPath(); nodeCtx.moveTo(tx + cellW * c, ty); nodeCtx.lineTo(tx + cellW * c, ty + tableH); nodeCtx.stroke(); }
 
@@ -239,47 +315,50 @@ function drawCSVHologram(layer, cx, cy) {
   nodeCtx.font = `bold ${fontSize}px Courier New`;
   for (let c = 0; c < cols; c++) {
     const label = c < cols - 1 ? `f_${c}` : '...';
-    nodeCtx.fillStyle = c < cols - 1 ? `rgba(0, 255, 136, ${0.9 * flicker})` : `rgba(0, 255, 136, ${0.35 * flicker})`;
+    nodeCtx.fillStyle = c < cols - 1 ? `rgba(${g}, ${0.85 * flicker})` : `rgba(${g}, ${0.3 * flicker})`;
     nodeCtx.fillText(label, tx + cellW * c + cellW / 2, ty + cellH / 2);
   }
   nodeCtx.font = `${fontSize}px Courier New`;
   for (let r = 0; r < dataRows; r++) {
-    const rowFade = (0.38 + (dataRows - r) / dataRows * 0.38) * flicker;
+    const rowFade = (0.55 + (dataRows - r) / dataRows * 0.33) * flicker;
     for (let c = 0; c < cols - 1; c++) {
       const v = (hashF(layer.id * 53 + c * 7, r * 13 + 3) * 2 - 1).toFixed(2);
-      nodeCtx.fillStyle = `rgba(0, 210, 255, ${rowFade})`;
+      nodeCtx.fillStyle = white ? `rgba(0, 140, 200, ${rowFade})` : `rgba(0, 210, 255, ${rowFade})`;
       nodeCtx.fillText(v, tx + cellW * c + cellW / 2, ty + cellH * (r + 1) + cellH / 2);
     }
-    nodeCtx.fillStyle = `rgba(0, 255, 136, ${0.22 * flicker})`;
+    nodeCtx.fillStyle = white ? `rgba(${g}, ${0.4 * flicker})` : `rgba(0, 255, 136, ${0.45 * flicker})`;
     nodeCtx.fillText('…', tx + cellW * (cols - 1) + cellW / 2, ty + cellH * (r + 1) + cellH / 2);
   }
 
   // scanlines
-  nodeCtx.save(); nodeCtx.globalAlpha = 0.06 * flicker;
-  for (let sy2 = ty; sy2 < ty + tableH; sy2 += 3) { nodeCtx.fillStyle = '#000'; nodeCtx.fillRect(tx, sy2, tableW, 1.2); }
-  nodeCtx.restore();
+  if (!white) {
+    nodeCtx.save(); nodeCtx.globalAlpha = 0.06 * flicker;
+    for (let sy2 = ty; sy2 < ty + tableH; sy2 += 3) { nodeCtx.fillStyle = '#000'; nodeCtx.fillRect(tx, sy2, tableW, 1.2); }
+    nodeCtx.restore();
+  }
 
   nodeCtx.font = `${Math.max(6, 7.5 * zoom)}px Courier New`; nodeCtx.textAlign = 'left'; nodeCtx.textBaseline = 'bottom';
-  nodeCtx.fillStyle = `rgba(0, 255, 136, ${0.38 * flicker})`; nodeCtx.fillText('data.csv', tx + 2, ty - 2);
+  nodeCtx.fillStyle = white ? `rgba(${g}, ${0.35 * flicker})` : `rgba(0, 255, 136, ${0.38 * flicker})`; nodeCtx.fillText('data.csv', tx + 2, ty - 2);
 
-  nodeCtx.strokeStyle = `rgba(0, 255, 136, ${0.2 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.strokeStyle = white ? `rgba(${g}, ${0.15 * flicker})` : `rgba(0, 255, 136, ${0.2 * flicker})`; nodeCtx.lineWidth = 0.5;
   nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, ty + tableH); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
   nodeCtx.setLineDash([]); nodeCtx.restore();
 }
 
 /* --- Neuron column hologram for LINEAR layers --- */
-function drawNeuronHologram(layer, cx, cy, colorRgbOverride) {
+function drawNeuronHologram(layer, cx, cy, white, colorRgbOverride) {
   if (zoom < 0.28) return;
-  nodeCtx.save(); nodeCtx.globalAlpha = 0.38;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
 
   const neuronR  = Math.max(6, 10 * zoom);
   const spacing  = Math.max(22, 34 * zoom);
   const lineLen  = Math.max(18, 28 * zoom);
-  const colorRgb = colorRgbOverride || '0, 136, 255';
+  const colorRgb = colorRgbOverride || (white ? '0, 100, 180' : '0, 136, 255');
   const boxH     = layerTypes.linear.h * zoom;
   const topY     = cy - boxH / 2 - Math.max(12, 18 * zoom) - 2 * spacing;
   const flicker  = 0.84 + Math.sin(time * 3.9 + layer.id * 2.3) * 0.08 + Math.sin(time * 10.1 + layer.id * 0.7) * 0.04;
   const ys       = [topY, topY + spacing, topY + spacing * 2];
+  const neuronBg = white ? `rgba(240, 245, 255, ${0.9 * flicker})` : `rgba(0, 40, 90, ${0.9 * flicker})`;
 
   for (const ny of ys) {
     for (let w = 0; w < 3; w++) {
@@ -292,7 +371,7 @@ function drawNeuronHologram(layer, cx, cy, colorRgbOverride) {
   for (const ny of ys) {
     nodeCtx.save(); nodeCtx.shadowColor = `rgb(${colorRgb})`; nodeCtx.shadowBlur = 14 * zoom * flicker;
     nodeCtx.beginPath(); nodeCtx.arc(cx, ny, neuronR, 0, Math.PI * 2);
-    nodeCtx.fillStyle   = `rgba(0, 18, 45, ${0.9 * flicker})`; nodeCtx.fill();
+    nodeCtx.fillStyle   = neuronBg; nodeCtx.fill();
     nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.8 * flicker})`; nodeCtx.lineWidth = 1.5; nodeCtx.stroke(); nodeCtx.restore();
     nodeCtx.beginPath(); nodeCtx.arc(cx, ny, neuronR * 0.3, 0, Math.PI * 2);
     nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.6 * flicker})`; nodeCtx.fill();
@@ -304,10 +383,12 @@ function drawNeuronHologram(layer, cx, cy, colorRgbOverride) {
 }
 
 /* --- Flatten hologram: matrix → 1D strip animation --- */
-function drawFlattenHologram(layer, cx, cy) {
+function drawFlattenHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
 
-  const colorRgb  = '255, 200, 0';
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb  = white ? '200, 150, 0' : '255, 200, 0';
   const boxH      = layerTypes.flatten.h * zoom;
   const flicker   = 0.84 + Math.sin(time * 4.1 + layer.id * 1.9) * 0.08 + Math.sin(time * 9.7 + layer.id * 0.6) * 0.04;
   const gridCols  = 4, gridRows = 3, totalCells = gridCols * gridRows;
@@ -324,8 +405,9 @@ function drawFlattenHologram(layer, cx, cy) {
     for (let c = 0; c < gridCols; c++) {
       const idx = r * gridCols + c, hot = idx === scanIdx;
       const px = gridX + c * cellStep, py = topY + r * cellStep;
-      nodeCtx.fillStyle   = hot ? `rgba(${colorRgb}, ${0.5 * flicker})` : `rgba(${colorRgb}, ${0.08 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
-      nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.9 : 0.28) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+      nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.25 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.fillStyle   = hot ? `rgba(${colorRgb}, ${0.35 * flicker})` : `rgba(${colorRgb}, ${0.08 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.85 : 0.45) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
     }
   }
 
@@ -338,16 +420,148 @@ function drawFlattenHologram(layer, cx, cy) {
 
   for (let i = 0; i < totalCells; i++) {
     const px = stripX + i * cellStep, hot = i === scanIdx;
-    nodeCtx.fillStyle   = hot ? `rgba(${colorRgb}, ${0.5 * flicker})` : `rgba(${colorRgb}, ${0.08 * flicker})`; nodeCtx.fillRect(px, stripY, cellSize, cellSize);
-    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.9 : 0.22) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, stripY, cellSize, cellSize);
+    nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.25 * flicker})`; nodeCtx.fillRect(px, stripY, cellSize, cellSize);
+    nodeCtx.fillStyle   = hot ? `rgba(${colorRgb}, ${0.35 * flicker})` : `rgba(${colorRgb}, ${0.08 * flicker})`; nodeCtx.fillRect(px, stripY, cellSize, cellSize);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.85 : 0.45) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, stripY, cellSize, cellSize);
   }
-
-  nodeCtx.font = `${Math.max(6, 7.5 * zoom)}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'bottom';
-  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.4 * flicker})`; nodeCtx.fillText('flatten', cx, topY - 3);
 
   nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
   nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, stripY + cellSize + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
   nodeCtx.setLineDash([]);
+}
+
+/* --- Mean hologram: 2D tensor collapsing into reduced values --- */
+function drawMeanHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb  = white ? '200, 120, 0' : '255, 140, 0';
+  const boxH      = layerTypes.mean.h * zoom;
+  const flicker   = 0.84 + Math.sin(time * 4.1 + layer.id * 1.9) * 0.08 + Math.sin(time * 9.7 + layer.id * 0.6) * 0.04;
+  const rows      = 3, cols = 2;
+  const cellSize  = Math.max(8, Math.min(16, 13 * zoom));
+  const cellGap   = Math.max(2, 3 * zoom), cellStep = cellSize + cellGap;
+  const gridW     = cols * cellStep - cellGap;
+  const outSize   = Math.max(8, Math.min(16, 13 * zoom));
+  const gap       = Math.max(18, 28 * zoom);
+  const topY      = cy - boxH / 2 - gap - (rows * cellStep - cellGap);
+  const gridX     = cx - gridW / 2;
+
+  // 2D tensor grid
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = gridX + c * cellStep, py = topY + r * cellStep;
+      nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.25 * flicker})`;
+      nodeCtx.fillRect(px, py, cellSize, cellSize);
+      const shimmer = 0.08 + 0.06 * Math.sin(time * 2 + r * 1.3 + c * 2.7 + layer.id);
+      nodeCtx.fillStyle = `rgba(${colorRgb}, ${shimmer * flicker})`;
+      nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.45 * flicker})`;
+      nodeCtx.lineWidth = 0.5;
+      nodeCtx.strokeRect(px, py, cellSize, cellSize);
+    }
+  }
+
+  // Collapse arrows: from each row's cells down to a single reduced cell
+  const arrowY = topY + rows * cellStep + 2;
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.35 * flicker})`;
+  nodeCtx.lineWidth = 0.6;
+  for (let r = 0; r < rows; r++) {
+    const rowMid = gridX + (cols - 1) * cellStep / 2 + cellSize / 2;
+    const leftX  = gridX;
+    const rightX = gridX + (cols - 1) * cellStep + cellSize;
+    nodeCtx.beginPath();
+    nodeCtx.moveTo(leftX, topY + r * cellStep + cellSize);
+    nodeCtx.lineTo(rowMid, arrowY);
+    nodeCtx.moveTo(rightX, topY + r * cellStep + cellSize);
+    nodeCtx.lineTo(rowMid, arrowY);
+    nodeCtx.stroke();
+  }
+
+  // Reduced output row (1D — collapsed dimension)
+  const outRowY = arrowY;
+  const outW     = rows * cellStep - cellGap;
+  const outX     = cx - outW / 2;
+  const scanRow  = Math.floor(time * 3) % rows;
+
+  for (let r = 0; r < rows; r++) {
+    const px = outX + r * cellStep;
+    const isHot = r === scanRow;
+     nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.25 * flicker})`;
+    nodeCtx.fillRect(px, outRowY, outSize, outSize);
+    nodeCtx.fillStyle = isHot
+      ? `rgba(${colorRgb}, ${0.35 * flicker})`
+      : `rgba(${colorRgb}, ${0.08 * flicker})`;
+    nodeCtx.fillRect(px, outRowY, outSize, outSize);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(isHot ? 0.8 : 0.45) * flicker})`;
+    nodeCtx.lineWidth = 0.5;
+    nodeCtx.strokeRect(px, outRowY, outSize, outSize);
+  }
+
+  // Label
+  // Connector to layer box
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`;
+  nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]);
+  nodeCtx.beginPath();
+  nodeCtx.moveTo(cx, outRowY + outSize + 4);
+  nodeCtx.lineTo(cx, cy - boxH / 2);
+  nodeCtx.stroke();
+  nodeCtx.setLineDash([]);
+
+  nodeCtx.restore();
+}
+
+/* --- Conv hologram: feature map grid with kernel overlay --- */
+function drawConvHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb  = white ? '0, 140, 160' : '0, 204, 221';
+  const boxH      = layerTypes.conv.h * zoom;
+  const flicker   = 0.84 + Math.sin(time * 4.1 + layer.id * 1.9) * 0.08 + Math.sin(time * 9.7 + layer.id * 0.6) * 0.04;
+  const gridCols  = 6, gridRows = 6;
+  const cellSize  = Math.max(7, Math.min(14, 11 * zoom));
+  const cellGap   = Math.max(2, 2.5 * zoom), cellStep = cellSize + cellGap;
+  const gridW     = gridCols * cellStep - cellGap, gridH = gridRows * cellStep - cellGap;
+  const ks        = resolveVal(layer.kernel_size || 3);
+  const ksPx      = Math.max(6, Math.min(cellSize * 0.7, ks * 2.5 * zoom));
+  const topY      = cy - boxH / 2 - Math.max(10, 14 * zoom) - gridH;
+  const gridX     = cx - gridW / 2;
+  const scanIdx   = Math.floor(time * 5) % (gridCols * gridRows);
+  const scanR     = Math.floor(scanIdx / gridCols);
+  const scanC     = scanIdx % gridCols;
+
+  for (let r = 0; r < gridRows; r++) {
+    for (let c = 0; c < gridCols; c++) {
+      const idx = r * gridCols + c, hot = idx === scanIdx;
+      const px = gridX + c * cellStep, py = topY + r * cellStep;
+      nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.25 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.fillStyle   = hot ? `rgba(${colorRgb}, ${0.35 * flicker})` : `rgba(${colorRgb}, ${0.08 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.85 : 0.45) * flicker})`;
+      nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+    }
+  }
+
+  // kernel overlay on hot cell
+  const hotGX = gridX + scanC * cellStep + cellSize / 2;
+  const hotGY = topY + scanR * cellStep + cellSize / 2;
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.4 * flicker})`;
+  nodeCtx.lineWidth = 0.8;
+  nodeCtx.strokeRect(hotGX - ksPx / 2, hotGY - ksPx / 2, ksPx, ksPx);
+  nodeCtx.beginPath();
+  nodeCtx.moveTo(hotGX - ksPx / 2, hotGY); nodeCtx.lineTo(hotGX + ksPx / 2, hotGY);
+  nodeCtx.moveTo(hotGX, hotGY - ksPx / 2); nodeCtx.lineTo(hotGX, hotGY + ksPx / 2);
+  nodeCtx.stroke();
+
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`;
+  nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]);
+  nodeCtx.beginPath(); nodeCtx.moveTo(cx, topY + gridH + 4); nodeCtx.lineTo(cx, cy - boxH / 2);
+  nodeCtx.stroke();
+  nodeCtx.setLineDash([]);
+  nodeCtx.restore();
 }
 
 /* --- Activation curve hologram for LINEAR layers --- */
@@ -356,7 +570,8 @@ function drawActivationCurve(layer, cx, cy) {
   const act = layer.activation;
   if (!act || act === 'none') return;
 
-  const colorRgb = '0, 136, 255';
+  const white = document.body.classList.contains('white-mode');
+  const colorRgb = white ? '0, 100, 180' : '0, 136, 255';
   const flicker  = 0.86 + Math.sin(time * 3.3 + layer.id * 1.7) * 0.08 + Math.sin(time * 7.9 + layer.id * 0.5) * 0.03;
   const boxH     = layerTypes.linear.h * zoom;
   const curveW   = 100 * zoom, curveH = 46 * zoom, gap = 14 * zoom;
@@ -421,16 +636,17 @@ function drawGhost(mx, my) {
   const w  = t.w * zoom, h = t.h * zoom;
   const [wx, wy] = screenToWorld(mx, my);
   const [sx, sy] = worldToScreen(snapToGrid(wx), snapToGrid(wy));
+  const white = document.body.classList.contains('white-mode');
   ghostEl.style.display    = 'block';
   ghostEl.style.left       = (sx - w / 2) + 'px';
   ghostEl.style.top        = (sy - h / 2) + 'px';
   ghostEl.style.width      = w + 'px';
   ghostEl.style.height     = h + 'px';
-  ghostEl.style.border     = `1.5px dashed ${t.color}`;
+  ghostEl.style.border     = `1.5px dashed ${white ? t.color : t.color}`;
   ghostEl.style.borderRadius = '4px';
   ghostEl.style.opacity    = '0.6';
-  ghostEl.style.boxShadow  = `0 0 15px ${t.glow}44`;
-  ghostEl.style.background = t.bg.replace('0.9', '0.3');
+  ghostEl.style.boxShadow  = white ? '0 0 10px rgba(0,0,0,0.1)' : `0 0 15px ${t.glow}44`;
+  ghostEl.style.background = white ? `rgba(${hexToRgb(t.color)}, 0.06)` : t.bg.replace('0.9', '0.3');
   const fontSize = Math.max(9, 12 * zoom);
   ghostEl.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:${t.color};font-family:Courier New;font-size:${fontSize}px;font-weight:bold;">${paletteDragType.toUpperCase()}</div>`;
 }
@@ -441,6 +657,7 @@ function draw() {
   nodeCtx.clearRect(0, 0, W, H);
   computeOutputShapes();
   drawOrigin();
+  const white = document.body.classList.contains('white-mode');
 
   // draw connections
   for (let ci = 0; ci < connections.length; ci++) {
@@ -456,14 +673,16 @@ function draw() {
     drawPath(path, col, isSelected ? '#ffffff' : ft.color, isSelected ? 3.5 : 2);
 
     if (c.paramLabel && zoom > 0.3) {
-      const midPt    = path[1];
+      const midPt    = { x: path[1].x, y: (path[1].y + path[2].y) / 2 };
       const fontSize = Math.max(8, Math.min(11, 10 * zoom));
       nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'center';
+      const paramColor = document.body.classList.contains('white-mode') ? '#b89000' : '#ffc800';
+      const paramColorDim = document.body.classList.contains('white-mode') ? 'rgba(180, 140, 0, 0.6)' : 'rgba(255, 200, 0, 0.6)';
       if (c.paramLabelTop) {
-        nodeCtx.textBaseline = 'bottom'; nodeCtx.fillStyle = '#ffc800';
+        nodeCtx.textBaseline = 'bottom'; nodeCtx.fillStyle = paramColor;
         nodeCtx.fillText(c.paramLabelTop, midPt.x, midPt.y - 10);
       }
-      nodeCtx.textBaseline = 'top'; nodeCtx.fillStyle = 'rgba(255, 200, 0, 0.6)';
+      nodeCtx.textBaseline = 'top'; nodeCtx.fillStyle = paramColorDim;
       nodeCtx.fillText(c.paramLabel, midPt.x, midPt.y + 14);
     }
 
@@ -485,8 +704,8 @@ function draw() {
     const [sx, sy]   = worldToScreen(l.x, l.y);
     const isConnected = connections.some(c => c.from === l.id || c.to === l.id);
 
-    if (l.type === 'input'   && isConnected && !isHologramBlocked(l)) drawCSVHologram(l, sx, sy);
-    if (l.type === 'linear'  && isConnected && !isHologramBlocked(l)) drawNeuronHologram(l, sx, sy);
+    if (l.type === 'input'   && isConnected && !isHologramBlocked(l)) drawCSVHologram(l, sx, sy, white);
+    if (l.type === 'linear'  && isConnected && !isHologramBlocked(l)) drawNeuronHologram(l, sx, sy, white);
     if (l.type === 'linear'  && l.activation && l.activation !== 'none') {
       const lt          = layerTypes.linear;
       const layerBottom = l.y + lt.h / 2;
@@ -497,9 +716,11 @@ function draw() {
           && other.y - ot.h / 2 > layerBottom
           && other.y - ot.h / 2 < layerBottom + 75;
       });
-      if (!curveBlocked) drawActivationCurve(l, sx, sy);
+      if (!curveBlocked) drawActivationCurve(l, sx, sy, white);
     }
-    if (l.type === 'flatten' && isConnected && !isHologramBlocked(l)) drawFlattenHologram(l, sx, sy);
+    if (l.type === 'flatten' && isConnected && !isHologramBlocked(l)) drawFlattenHologram(l, sx, sy, white);
+    if (l.type === 'mean' && isConnected && !isHologramBlocked(l)) drawMeanHologram(l, sx, sy, white);
+    if (l.type === 'conv' && isConnected && !isHologramBlocked(l)) drawConvHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 
@@ -508,7 +729,9 @@ function draw() {
       const t = layerTypes[l.type];
       const w = t.w * zoom, h = t.h * zoom;
       const pulse = Math.sin(time * 6) * 0.3 + 0.7;
-      nodeCtx.strokeStyle = `rgba(${hexToRgb(t.color)}, ${pulse})`;
+      const tColorRing = white && t.lightColor ? t.lightColor : t.color;
+      const ringColor = white ? `rgba(${hexToRgb(tColorRing)}, ${pulse * 0.7})` : `rgba(${hexToRgb(tColorRing)}, ${pulse})`;
+      nodeCtx.strokeStyle = ringColor;
       nodeCtx.lineWidth   = 3; nodeCtx.setLineDash([4, 4]);
       nodeCtx.strokeRect(sx - w / 2 - 6, sy - h / 2 - 6, w + 12, h + 12);
       nodeCtx.setLineDash([]);

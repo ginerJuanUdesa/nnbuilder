@@ -40,6 +40,54 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* CONV: PyTorch Conv{1,2,3}d semantics
+       ndim=1: operates on last-2 dims (C, L_in) → (C_out, L_out)
+       ndim=2: operates on last-3 dims (C, H, W) → (C_out, H_out, W_out)
+       ndim=3: operates on last-4 dims (C, D, H, W) → (C_out, D_out, H_out, W_out)
+       Input: [..., C_in, D_in?, H_in, W_in] → Output: [..., C_out, D_out?, H_out, W_out]
+
+       PyTorch formula per spatial dim:
+         out = floor((in + 2*padding - dilation*(kernel_size-1) - 1) / stride + 1)
+
+       kernel_size, stride, padding, dilation can be scalar (broadcast) or tuple (per-dim). */
+    if (layer.type === 'conv') {
+      const oc    = resolveVal(layer.out_channels || 16);
+      const gr    = resolveVal(layer.groups || 1);
+      const ndim  = layer.ndim !== undefined ? layer.ndim : 2;
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = [oc]; return shapeCache[layerId]; }
+      const srcShape = resolveShape(incoming[incoming.length - 1].from);
+      if (!srcShape || srcShape.length === 0) { shapeCache[layerId] = [oc]; return shapeCache[layerId]; }
+
+      /* Prepend leading 1s (batch-like dims) until we have at least ndim+1 dims.
+         App input uses no-batch shapes: e.g. [28, 28] for a 28×28 image.
+         Conv2d expects (C, H, W) = 3 dims, so [28, 28] becomes [1, 28, 28]. */
+      const spatialDims = ndim + 1; // C + spatial
+      let paddedShape = [...srcShape];
+      while (paddedShape.length < spatialDims) paddedShape.unshift(1);
+      const n = paddedShape.length;
+      const cIn = paddedShape[n - spatialDims];
+      const spatialIn = paddedShape.slice(n - spatialDims + 1, n);
+      const leading = n > spatialDims ? paddedShape.slice(0, n - spatialDims) : [];
+      if (cIn % gr !== 0) { shapeCache[layerId] = [oc]; return shapeCache[layerId]; }
+
+      /* Resolve per-dimension params: scalar broadcasts, array is per-spatial-dim */
+      const rawKs = layer.kernel_size !== undefined ? layer.kernel_size : 3;
+      const rawSt = layer.stride       !== undefined ? layer.stride       : 1;
+      const rawPd = layer.padding      !== undefined ? layer.padding      : 0;
+      const rawDl = layer.dilation     !== undefined ? layer.dilation     : 1;
+      const ksArr = Array.isArray(rawKs) ? rawKs.map(v => resolveVal(v)) : Array(ndim).fill(resolveVal(rawKs));
+      const stArr = Array.isArray(rawSt) ? rawSt.map(v => resolveVal(v)) : Array(ndim).fill(resolveVal(rawSt));
+      const pdArr = Array.isArray(rawPd) ? rawPd.map(v => resolveVal(v)) : Array(ndim).fill(resolveVal(rawPd));
+      const dlArr = Array.isArray(rawDl) ? rawDl.map(v => resolveVal(v)) : Array(ndim).fill(resolveVal(rawDl));
+
+      const spatialOut = spatialIn.map((s, i) =>
+        Math.floor((s + 2 * pdArr[i] - dlArr[i] * (ksArr[i] - 1) - 1) / stArr[i] + 1)
+      );
+       shapeCache[layerId] = [...leading, oc, ...spatialOut];
+      return shapeCache[layerId];
+    }
+
     /* LINEAR: PyTorch nn.Linear operates on last dim only → (..., in) → (..., out) */
     if (layer.type === 'linear') {
       const units    = resolveVal(layer.units || 128);
@@ -100,12 +148,37 @@ function computeOutputShapes() {
       const allIncoming = connections.filter(cc => cc.to === toLayer.id);
       const isFirst     = allIncoming[0] === c;
       if (isFirst) {
-        const weights   = inFeatures * units;
-        const bias      = units;
-        c.paramCount    = weights + bias;
-        c.paramLabel    = `W[${inFeatures}, ${units}]  b[${units}]`;
-        c.paramLabelTop = `${inFeatures}×${units}+${bias}=${(weights + bias).toLocaleString()}`;
+        const weights    = inFeatures * units;
+        const hasBias    = toLayer.bias !== false;
+        const biasCount  = hasBias ? units : 0;
+        c.paramCount    = weights + biasCount;
+        c.paramLabel    = hasBias ? `W[${inFeatures}, ${units}]  b[${units}]` : `W[${inFeatures}, ${units}]`;
+        c.paramLabelTop = hasBias
+          ? `${inFeatures}×${units}+${biasCount}=${(weights + biasCount).toLocaleString()}`
+          : `${inFeatures}×${units}=${weights.toLocaleString()}`;
         totalParams    += c.paramCount;
+      } else {
+        c.paramCount = 0; c.paramLabel = 'shared W'; c.paramLabelTop = '';
+      }
+    } else if (toLayer.type === 'conv') {
+      const oc    = resolveVal(toLayer.out_channels || 16);
+      const gr    = resolveVal(toLayer.groups || 1);
+      const ndim  = toLayer.ndim !== undefined ? toLayer.ndim : 2;
+      const spatialDims = ndim + 1; // C + spatial
+      const cIn = fromShape[fromShape.length - spatialDims] || 1;
+      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const isFirst = allIncoming[0] === c;
+      if (isFirst) {
+        const rawKs = toLayer.kernel_size !== undefined ? toLayer.kernel_size : 3;
+        const ksArr = Array.isArray(rawKs) ? rawKs.map(v => resolveVal(v)) : Array(ndim).fill(resolveVal(rawKs));
+        const ksProduct = ksArr.reduce((a, b) => a * b, 1);
+        const weights = oc * (cIn / gr) * ksProduct;
+        const bias    = oc;
+        c.paramCount  = weights + bias;
+        const ksLabel = ksArr.join(', ');
+        c.paramLabel  = `W[${oc}, ${cIn / gr}, ${ksLabel}]  b[${oc}]`;
+        c.paramLabelTop = `${weights.toLocaleString()}+${bias}=${(weights + bias).toLocaleString()}`;
+        totalParams  += c.paramCount;
       } else {
         c.paramCount = 0; c.paramLabel = 'shared W'; c.paramLabelTop = '';
       }
