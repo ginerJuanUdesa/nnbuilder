@@ -173,8 +173,8 @@ function drawLayerBox(layer, cx, cy) {
 
       } else if (layer.type === 'linear') {
         const inc      = connections.filter(c => c.to === layer.id);
-        const srcShape = inc.length > 0 ? shapeCache[inc[0].from] : null;
-        const inF      = srcShape ? srcShape[srcShape.length - 1] : '?';
+        const srcDisp  = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
+        const inF      = srcDisp ? srcDisp[srcDisp.length - 1] : '?';
         const prefix   = inc.length > 1 ? `${inc.length}× ` : '';
         const actTag   = layer.activation && layer.activation !== 'none' ? ` · ${layer.activation}` : '';
         const text = `${prefix}${inF} → ${layer.units || '?'}${actTag}`;
@@ -194,7 +194,8 @@ function drawLayerBox(layer, cx, cy) {
         const outShape = shapeCache[layer.id];
         const sd = layer.start_dim !== undefined ? layer.start_dim : 0;
         const ed = layer.end_dim   !== undefined ? layer.end_dim   : -1;
-        const text = outShape ? `[${outShape.join(', ')}]` : `${sd} : ${ed}`;
+        const dispShape = outShape ? getDisplayShape(layer.id) : null;
+        const text = dispShape ? `[${dispShape.join(', ')}]` : `${sd} : ${ed}`;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -237,16 +238,18 @@ function drawLayerBox(layer, cx, cy) {
 
       } else if (layer.type === 'softmax') {
         const outShape = shapeCache[layer.id];
+        const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const dim = layer.dim !== undefined ? layer.dim : -1;
-        const text = outShape ? `dim=${dim} → [${outShape.join(', ')}]` : `dim=${dim}`;
+        const text = dispShape ? `dim=${dim} → [${dispShape.join(', ')}]` : `dim=${dim}`;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'unsqueeze') {
         const outShape = shapeCache[layer.id];
+        const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const dim = layer.dim !== undefined ? layer.dim : 0;
-        const text = outShape ? `dim=${dim} → [${outShape.join(', ')}]` : `dim=${dim}`;
+        const text = dispShape ? `dim=${dim} → [${dispShape.join(', ')}]` : `dim=${dim}`;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);

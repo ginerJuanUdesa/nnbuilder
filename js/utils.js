@@ -35,6 +35,41 @@ function resolveVal(v) {
   return isNaN(n) ? 1 : Math.max(1, n);
 }
 
+/* getDisplayShape — like shapeCache but preserves variable names in dims.
+   Traces raw layer props instead of resolved numbers where possible. */
+function getDisplayShape(layerId) {
+  const layer = layers.find(l => l.id === layerId);
+  if (!layer) return null;
+  const resolved = shapeCache[layerId];
+  if (!resolved) return null;
+
+  if (layer.type === 'input') {
+    return (layer.dims || []).map(d => d); // already raw (var names intact)
+  }
+  if (layer.type === 'linear' || layer.type === 'shared_dense') {
+    const inc = connections.filter(c => c.to === layerId);
+    const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
+    const leading = srcDisp ? srcDisp.slice(0, -1) : resolved.slice(0, -1);
+    const last = layer.units !== undefined ? layer.units : resolved[resolved.length - 1];
+    return [...leading, last];
+  }
+  if (layer.type === 'unsqueeze') {
+    const inc = connections.filter(c => c.to === layerId);
+    const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
+    if (!srcDisp) return resolved;
+    const dim = layer.dim !== undefined ? resolveVal(layer.dim) : 0;
+    const actualDim = dim < 0 ? srcDisp.length + 1 + dim : dim;
+    const out = [...srcDisp];
+    out.splice(Math.max(0, Math.min(actualDim, srcDisp.length)), 0, 1);
+    return out;
+  }
+  if (layer.type === 'softmax' || layer.type === 'add') {
+    const inc = connections.filter(c => c.to === layerId);
+    return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
+  }
+  return resolved; // flatten, mean, conv — fall back to resolved
+}
+
 /* Spatial queries */
 function overlapsAny(wx, wy, excludeId) {
   for (const l of layers) {
