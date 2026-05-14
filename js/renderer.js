@@ -119,6 +119,7 @@ function drawLayerBox(layer, cx, cy) {
       conv:    'rgba(200, 238, 244, 0.97)',
       unsqueeze: 'rgba(248, 220, 238, 0.97)',
       softmax:   'rgba(255, 220, 220, 0.97)',
+      add:       'rgba(230, 255, 210, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -220,6 +221,19 @@ function drawLayerBox(layer, cx, cy) {
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
+
+      } else if (layer.type === 'add') {
+        const inc = connections.filter(cc => cc.to === layer.id);
+        const outShape = shapeCache[layer.id];
+        const shapes = inc.map(cc => shapeCache[cc.from]).filter(Boolean);
+        const allMatch = shapes.length > 1 && shapes.every(s => JSON.stringify(s) === JSON.stringify(shapes[0]));
+        const status = inc.length === 0 ? 'no inputs'
+          : !outShape ? 'shape mismatch!'
+          : `${inc.length}× [${outShape.join(', ')}]`;
+        nodeCtx.fillStyle = (!outShape && inc.length > 0) ? '#ff4444' : (white ? tColor : `rgba(${hexToRgb(tColor)}, 0.55)`);
+        nodeCtx.measureText(status).width > boxHalfW * 2
+          ? wrapText(status, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(status, cx, baseY);
 
       } else if (layer.type === 'softmax') {
         const outShape = shapeCache[layer.id];

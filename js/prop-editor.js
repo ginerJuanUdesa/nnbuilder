@@ -274,6 +274,24 @@ function openPropEditor(layer) {
       });
       setTimeout(() => inp2.focus(), 50);
     }
+  } else if (layer.type === 'add') {
+    peTitle.textContent = 'ADD';
+    const inc = connections.filter(c => c.to === layer.id);
+    const shapes = inc.map(c => shapeCache[c.from]);
+    const allMatch = shapes.length > 1 && shapes.filter(Boolean).every(s => JSON.stringify(s) === JSON.stringify(shapes.find(Boolean)));
+    let html = '';
+    if (inc.length === 0) {
+      html = `<div class="pe-row"><span class="pe-label" style="color:rgba(170,255,0,0.5);">no inputs connected</span></div>`;
+    } else {
+      shapes.forEach((s, i) => {
+        const col = (!s || !allMatch) ? '#ff4444' : 'rgba(170,255,0,0.7)';
+        html += `<div class="pe-row"><span class="pe-label">IN ${i+1}</span><span style="color:${col};font-size:11px;font-family:'Courier New',monospace;">[${s ? s.join(', ') : '?'}]</span></div>`;
+      });
+      if (!allMatch && inc.length > 1) html += `<div class="pe-row" style="margin-top:4px;"><span class="pe-label" style="color:#ff4444;font-size:9px;">SHAPE MISMATCH</span></div>`;
+    }
+    html += `<div class="pe-row" style="margin-top:6px;border-top:1px solid rgba(128,128,128,0.2);padding-top:6px;"><span class="pe-label" style="font-size:9px;opacity:0.5;">element-wise sum · no params</span></div>`;
+    peBody.innerHTML = html;
+
   } else if (layer.type === 'softmax') {
     peTitle.textContent = 'SOFTMAX';
     peBody.innerHTML = `

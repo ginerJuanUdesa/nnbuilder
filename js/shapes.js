@@ -143,6 +143,20 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* ADD: torch.add — element-wise sum of all inputs, shape passthrough.
+       All inputs must have identical shapes (PyTorch broadcasting not modelled here). */
+    if (layer.type === 'add') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const shapes = incoming.map(c => resolveShape(c.from)).filter(Boolean);
+      if (shapes.length === 0) { shapeCache[layerId] = null; return null; }
+      const ref = JSON.stringify(shapes[0]);
+      const allMatch = shapes.every(s => JSON.stringify(s) === ref);
+      // if mismatch still return first shape (user sees mismatched sub-text)
+      shapeCache[layerId] = allMatch ? [...shapes[0]] : null;
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);

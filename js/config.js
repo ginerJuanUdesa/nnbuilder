@@ -12,6 +12,7 @@ const layerTypes = {
   conv:    { w: 140, h: 70, color: '#00ccdd', glow: '#00ccdd', bg: 'rgba(0, 50, 60, 0.97)',  lightColor: '#008296' },
   unsqueeze: { w: 140, h: 70, color: '#e060a0', glow: '#e060a0', bg: 'rgba(60, 0, 35, 0.97)',  lightColor: '#b02070' },
   softmax:   { w: 140, h: 70, color: '#ff3333', glow: '#ff3333', bg: 'rgba(60, 0, 0, 0.97)',   lightColor: '#cc1111' },
+  add:       { w: 140, h: 70, color: '#aaff00', glow: '#aaff00', bg: 'rgba(30, 50, 0, 0.97)',  lightColor: '#5a8a00' },
 };
 
 const ALL_FNS = ['none', 'relu', 'gelu', 'swiglu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'softplus', 'mish'];
