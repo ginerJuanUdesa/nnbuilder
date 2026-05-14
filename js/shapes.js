@@ -119,6 +119,21 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* UNSQUEEZE: torch.unsqueeze — inserts size-1 dim at position `dim` */
+    if (layer.type === 'unsqueeze') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[incoming.length - 1].from);
+      if (!srcShape) { shapeCache[layerId] = null; return null; }
+      const ndim = srcShape.length;
+      const dim  = layer.dim !== undefined ? resolveVal(layer.dim) : 0;
+      const actualDim = dim < 0 ? ndim + 1 + dim : dim;
+      const out = [...srcShape];
+      out.splice(Math.max(0, Math.min(actualDim, ndim)), 0, 1);
+      shapeCache[layerId] = out;
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);

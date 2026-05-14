@@ -207,6 +207,15 @@ window.addEventListener('contextmenu', e => {
 
 /* --- Keyboard: copy / paste --- */
 window.addEventListener('keydown', e => {
+  // ── undo / redo ──
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    e.preventDefault(); undo(); return;
+  }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    e.preventDefault(); redo(); return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
     if (selectedLayerId !== null && !propEditor.contains(document.activeElement)) {
       const src = layers.find(l => l.id === selectedLayerId);

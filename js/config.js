@@ -10,6 +10,7 @@ const layerTypes = {
   output:  { w: 140, h: 70, color: '#ff64ff', glow: '#ff64ff', bg: 'rgba(60, 0, 60, 0.97)',  lightColor: '#8c28b4' },
   mean:    { w: 140, h: 70, color: '#ff8c00', glow: '#ff8c00', bg: 'rgba(60, 30, 0, 0.97)',  lightColor: '#c05000' },
   conv:    { w: 140, h: 70, color: '#00ccdd', glow: '#00ccdd', bg: 'rgba(0, 50, 60, 0.97)',  lightColor: '#008296' },
+  unsqueeze: { w: 140, h: 70, color: '#e060a0', glow: '#e060a0', bg: 'rgba(60, 0, 35, 0.97)',  lightColor: '#b02070' },
 };
 
 const ALL_FNS = ['none', 'relu', 'gelu', 'swiglu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'softplus', 'mish'];

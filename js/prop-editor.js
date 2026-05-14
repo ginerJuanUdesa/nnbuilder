@@ -274,6 +274,19 @@ function openPropEditor(layer) {
       });
       setTimeout(() => inp2.focus(), 50);
     }
+  } else if (layer.type === 'unsqueeze') {
+    peTitle.textContent = 'UNSQUEEZE';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label">DIM</span><input class="pe-input" type="number" value="${layer.dim !== undefined ? layer.dim : 0}" id="pe-dim" step="1"></div>`;
+    const dimInp = peBody.querySelector('#pe-dim');
+    if (dimInp) {
+      dimInp.addEventListener('change', () => {
+        const v = parseInt(dimInp.value);
+        layer.dim = isNaN(v) ? 0 : v;
+        saveState();
+      });
+      setTimeout(() => dimInp.focus(), 50);
+    }
   }
 
   // position the popup next to the layer box
