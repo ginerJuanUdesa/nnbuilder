@@ -134,6 +134,15 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* SOFTMAX: nn.Softmax(dim) — shape passthrough */
+    if (layer.type === 'softmax') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[incoming.length - 1].from);
+      shapeCache[layerId] = srcShape ? [...srcShape] : null;
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);

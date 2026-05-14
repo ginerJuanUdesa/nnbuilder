@@ -118,6 +118,7 @@ function drawLayerBox(layer, cx, cy) {
       mean:    'rgba(255, 228, 200, 0.97)',
       conv:    'rgba(200, 238, 244, 0.97)',
       unsqueeze: 'rgba(248, 220, 238, 0.97)',
+      softmax:   'rgba(255, 220, 220, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -213,6 +214,14 @@ function drawLayerBox(layer, cx, cy) {
           : (layer.reduce_dim !== undefined ? String(layer.reduce_dim) : '0');
         const kdStr    = layer.keepdim ? ' kd' : '';
         const text = outShape ? `dim=${dimStr}${kdStr} → [${outShape.join(', ')}]` : `dim=${dimStr}${kdStr}`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
+
+      } else if (layer.type === 'softmax') {
+        const outShape = shapeCache[layer.id];
+        const dim = layer.dim !== undefined ? layer.dim : -1;
+        const text = outShape ? `dim=${dim} → [${outShape.join(', ')}]` : `dim=${dim}`;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);

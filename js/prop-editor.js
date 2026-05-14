@@ -274,6 +274,16 @@ function openPropEditor(layer) {
       });
       setTimeout(() => inp2.focus(), 50);
     }
+  } else if (layer.type === 'softmax') {
+    peTitle.textContent = 'SOFTMAX';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label">DIM</span><input class="pe-input" type="number" value="${layer.dim !== undefined ? layer.dim : -1}" id="pe-sm-dim" step="1"></div>`;
+    const smDim = peBody.querySelector('#pe-sm-dim');
+    if (smDim) {
+      smDim.addEventListener('change', () => { layer.dim = parseInt(smDim.value) || -1; saveState(); });
+      setTimeout(() => smDim.focus(), 50);
+    }
+
   } else if (layer.type === 'unsqueeze') {
     peTitle.textContent = 'UNSQUEEZE';
     peBody.innerHTML = `
