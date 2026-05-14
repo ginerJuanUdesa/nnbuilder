@@ -241,7 +241,7 @@ function drawLayerBox(layer, cx, cy) {
       } else { line = test; }
     }
     if (line) lines.push(line);
-    const lineHeight = parseFloat(fontStr) * 1.25;
+    const lineHeight = (parseFloat(fontStr.replace(/^[a-z]+\s*/i, "")) || parseFloat(fontStr)) * 1.25;
     lines.forEach((l, i) => nodeCtx.fillText(l, x, y + i * lineHeight));
   }
 
