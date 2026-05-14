@@ -16,6 +16,21 @@ function openPropEditor(layer) {
   propEditor.style.setProperty('--pe-rgb', hexToRgb(t.color));
   peBody.innerHTML = '';
 
+  /* --- NAME (all types) --- */
+  const nameRow = document.createElement('div'); nameRow.className = 'pe-row';
+  nameRow.style.marginBottom = '8px';
+  nameRow.innerHTML = '<span class="pe-label">NAME</span>';
+  const nameInp = document.createElement('input');
+  nameInp.className = 'pe-input'; nameInp.type = 'text';
+  nameInp.placeholder = 'optional'; nameInp.value = layer.name || '';
+  nameInp.style.width = '100px';
+  nameInp.addEventListener('change', () => {
+    layer.name = nameInp.value.trim() || undefined;
+    saveState();
+  });
+  nameRow.appendChild(nameInp);
+  peBody.appendChild(nameRow);
+
   /* --- INPUT --- */
   if (layer.type === 'input') {
     if (!layer.dims) layer.dims = [28, 28];

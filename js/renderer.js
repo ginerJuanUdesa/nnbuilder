@@ -147,10 +147,13 @@ function drawLayerBox(layer, cx, cy) {
     nodeCtx.fillStyle    = white ? `rgba(${hexToRgb(tColor)}, ${alpha})` : borderColor;
     nodeCtx.textAlign    = 'center';
     nodeCtx.textBaseline = 'middle';
-    const label = layer.type === 'conv'
+    const baseLabel = layer.type === 'conv'
       ? `CONV${layer.ndim !== undefined ? layer.ndim : 2}D`
       : layer.type.toUpperCase();
-    nodeCtx.fillText(label, cx, cy - (zoom > 0.4 ? 6 * zoom : 0));
+    const label = layer.name ? `${baseLabel}:${layer.name}` : baseLabel;
+    const labelFits = nodeCtx.measureText(label).width <= t.w * zoom - 8;
+    const displayLabel = labelFits ? label : baseLabel + (layer.name ? ':' + layer.name.slice(0, Math.max(1, Math.floor((t.w * zoom - 8 - nodeCtx.measureText(baseLabel + ':').width) / (nodeCtx.measureText('m').width)))) + '…' : '');
+    nodeCtx.fillText(displayLabel, cx, cy - (zoom > 0.4 ? 6 * zoom : 0));
 
     if (zoom > 0.4) {
       const subSize = Math.max(7, 9 * zoom);
