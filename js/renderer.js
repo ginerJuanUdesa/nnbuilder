@@ -133,20 +133,50 @@ function drawLayerBox(layer, cx, cy) {
     const label = layer.name ? `${baseLabel}:${layer.name}` : baseLabel;
     const labelFits = nodeCtx.measureText(label).width <= t.w * zoom - 8;
     const displayLabel = labelFits ? label : baseLabel + (layer.name ? ':' + layer.name.slice(0, Math.max(1, Math.floor((t.w * zoom - 8 - nodeCtx.measureText(baseLabel + ':').width) / (nodeCtx.measureText('m').width)))) + '…' : '');
-    nodeCtx.fillText(displayLabel, cx, cy - (zoom > 0.4 ? 6 * zoom : 0));
+    if (zoom <= 0.4) {
+      nodeCtx.fillText(displayLabel, cx, cy);
+    }
 
     if (zoom > 0.4) {
-      const subSize = Math.max(7, 9 * zoom);
+      const subSize    = Math.max(7, 9 * zoom);
       const subFontStr = `${white ? 'bold ' : ''}${subSize}px Courier New`;
-      nodeCtx.font      = subFontStr;
-      nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, ${0.55 * alpha})`;
+      const boxHalfW   = t.w / 2 * zoom - 6;
+      const lineHeight = subSize * 1.25;
+      const baseY0     = cy + 10 * zoom;
 
-      const boxHalfW = t.w / 2 * zoom - 6; // 6px padding on each side
-      const baseY = cy + 10 * zoom;
+      // Count how many lines text wraps to (cap 4), using current ctx font
+      const countLines = (text, maxW) => {
+        nodeCtx.font = subFontStr;
+        const words = text.split(' ');
+        let line = '', count = 1;
+        for (const w of words) {
+          const test = line ? line + ' ' + w : w;
+          if (nodeCtx.measureText(test).width > maxW && line) { count++; line = w; }
+          else line = test;
+        }
+        return Math.min(count, 4);
+      };
+
+      // Shift amount: 0 for ≤2 lines, lineHeight/2 per extra line
+      const shiftFor = (lc) => Math.max(0, lc - 2) * lineHeight * 0.5;
+
+      // Draw title at adjusted Y (restores font/fillStyle after)
+      const drawTitle = (shift) => {
+        nodeCtx.font      = `bold ${fontSize}px Courier New`;
+        nodeCtx.fillStyle = white ? `rgba(${hexToRgb(tColor)}, ${alpha})` : borderColor;
+        nodeCtx.textAlign    = 'center';
+        nodeCtx.textBaseline = 'middle';
+        nodeCtx.fillText(displayLabel, cx, cy - 6 * zoom - shift);
+        nodeCtx.font      = subFontStr;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, ${0.55 * alpha})`;
+      };
 
       if (layer.type === 'input') {
         const dispDims = getDisplayShape(layer.id);
         const text = dispDims && dispDims.length > 0 ? `[${dispDims.join(', ')}]` : '?';
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -158,6 +188,9 @@ function drawLayerBox(layer, cx, cy) {
         const prefix   = inc.length > 1 ? `${inc.length}× ` : '';
         const actTag   = layer.activation && layer.activation !== 'none' ? ` · ${layer.activation}` : '';
         const text = `${prefix}${inF} → ${layer.units || '?'}${actTag}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -166,6 +199,9 @@ function drawLayerBox(layer, cx, cy) {
         const inc = connections.filter(c => c.to === layer.id);
         const inF = inc.length > 0 ? getLayerOutputLabel(inc[0].from) : '?';
         const text = `${inc.length}×[${inF}→${layer.units || '?'}]`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -176,6 +212,9 @@ function drawLayerBox(layer, cx, cy) {
         const ed = layer.end_dim   !== undefined ? layer.end_dim   : -1;
         const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const text = dispShape ? `[${dispShape.join(', ')}]` : `${sd} : ${ed}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -188,6 +227,9 @@ function drawLayerBox(layer, cx, cy) {
         const ndim = layer.ndim !== undefined ? layer.ndim : 2;
         const convLabel = `conv${ndim}d`;
         const text = outShape ? `${convLabel} c=${oc} k=${ksStr} → [${outShape.join(',')}]` : `${convLabel} c=${oc} k=${ksStr}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -199,6 +241,9 @@ function drawLayerBox(layer, cx, cy) {
           : (layer.reduce_dim !== undefined ? String(layer.reduce_dim) : '0');
         const kdStr    = layer.keepdim ? ' kd' : '';
         const text = outShape ? `dim=${dimStr}${kdStr} → [${outShape.join(', ')}]` : `dim=${dimStr}${kdStr}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -210,6 +255,9 @@ function drawLayerBox(layer, cx, cy) {
         const status = inc.length === 0 ? 'no inputs'
           : !outShape ? 'incompatible shapes!'
           : `${inc.length}× [${dispShape ? dispShape.join(', ') : outShape.join(', ')}]`;
+        const shift = shiftFor(countLines(status, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.fillStyle = (!outShape && inc.length > 0) ? '#ff4444' : (white ? tColor : `rgba(${hexToRgb(tColor)}, 0.55)`);
         nodeCtx.measureText(status).width > boxHalfW * 2
           ? wrapText(status, cx, baseY, boxHalfW * 2, subFontStr)
@@ -220,6 +268,9 @@ function drawLayerBox(layer, cx, cy) {
         const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const dim = layer.dim !== undefined ? layer.dim : -1;
         const text = dispShape ? `dim=${dim} → [${dispShape.join(', ')}]` : `dim=${dim}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -229,6 +280,9 @@ function drawLayerBox(layer, cx, cy) {
         const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const dim = layer.dim !== undefined ? layer.dim : 0;
         const text = dispShape ? `dim=${dim} → [${dispShape.join(', ')}]` : `dim=${dim}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
@@ -238,13 +292,15 @@ function drawLayerBox(layer, cx, cy) {
         const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const dimVal = layer.dim !== undefined && layer.dim !== null && layer.dim !== '' ? layer.dim : 'all';
         const text = dispShape ? `dim=${dimVal} → [${dispShape.join(', ')}]` : `dim=${dimVal}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'matmul') {
         const inc = connections.filter(cc => cc.to === layer.id);
-        const dispShape = getDisplayShape(layer.id);
         const shA = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
         const shB = inc.length > 1 ? getDisplayShape(inc[1].from) : null;
         const fmtS = s => s ? `[${s.join(', ')}]` : '?';
@@ -252,6 +308,9 @@ function drawLayerBox(layer, cx, cy) {
         const status = inc.length < 2 ? 'needs 2 inputs'
           : !compatible ? 'inner dim mismatch!'
           : `${fmtS(shA)} @ ${fmtS(shB)}`;
+        const shift = shiftFor(countLines(status, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.fillStyle = (!compatible && inc.length >= 2) ? '#ff4444' : (white ? tColor : `rgba(${hexToRgb(tColor)}, 0.55)`);
         nodeCtx.measureText(status).width > boxHalfW * 2
           ? wrapText(status, cx, baseY, boxHalfW * 2, subFontStr)
@@ -261,17 +320,21 @@ function drawLayerBox(layer, cx, cy) {
         const op     = layer.op     || '/';
         const factor = layer.factor !== undefined ? String(layer.factor) : '1';
         const sym    = op === '/' ? '÷' : '×';
+        drawTitle(0);
+        const baseY = baseY0;
         const scaleFontSize = Math.max(11, 16 * zoom);
         nodeCtx.font = `bold ${scaleFontSize}px Courier New`;
         nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.8)`;
         nodeCtx.fillText(`${sym} ${factor}`, cx, baseY);
-        nodeCtx.font = subFontStr; // restore for next branch
 
       } else if (layer.type === 'transpose') {
         const d0  = layer.dim0 !== undefined ? layer.dim0 : 0;
         const d1  = layer.dim1 !== undefined ? layer.dim1 : 1;
         const out = shapeCache[layer.id];
         const text = out ? `[${getDisplayShape(layer.id).join(', ')}]` : `dim ${d0}↔${d1}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
@@ -280,6 +343,9 @@ function drawLayerBox(layer, cx, cy) {
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
