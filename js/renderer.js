@@ -877,7 +877,37 @@ function drawAddHologram(layer, cx, cy, white) {
   const midY     = topY + gridH / 2;
   const scanIdx  = Math.floor(time * 5) % (rows * cols);
 
-  function drawSuperboxes(white) {
+  function drawGrid(ox, hot) {
+    for (let r = 0; r < rows; r++) {
+      for (let cc = 0; cc < cols; cc++) {
+        const idx = r * cols + cc, isHot = idx === hot;
+        const px = ox + cc * cellStep, py = topY + r * cellStep;
+        nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.22 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+        nodeCtx.fillStyle   = isHot ? `rgba(${colorRgb}, ${0.4 * flicker})` : `rgba(${colorRgb}, ${0.06 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+        nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(isHot ? 0.9 : 0.4) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+      }
+    }
+  }
+  drawGrid(aX, scanIdx);
+  drawGrid(bX, scanIdx);
+  drawGrid(cX, scanIdx); // result highlighted too
+
+  // + and = symbols
+  const fontSize = Math.max(8, 11 * zoom);
+  nodeCtx.font = `bold ${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.7 * flicker})`;
+  nodeCtx.fillText('+', aX + gridW + symW / 2, midY);
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.5 * flicker})`;
+  nodeCtx.fillText('=', bX + gridW + symW / 2, midY);
+
+  // connector
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, topY + gridH + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
+  nodeCtx.setLineDash([]); nodeCtx.restore();
+}
+
+/* --- Superboxes (groups): filled rect + dashed border + name label --- */
+function drawSuperboxes(white) {
   if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)) return;
   for (let i = 0; i < superboxes.length; i++) {
     const sb = superboxes[i];
@@ -922,7 +952,7 @@ function drawAddHologram(layer, cx, cy, white) {
     const [ax, ay] = worldToScreen(_sbDrawStart.wx, _sbDrawStart.wy);
     const [bx, by] = worldToScreen(_sbDrawCurrent.wx, _sbDrawCurrent.wy);
     nodeCtx.save();
-    nodeCtx.globalAlpha = 0.35;
+    nodeCtx.globalAlpha = 0.12;
     nodeCtx.fillStyle = '#ffffff';
     nodeCtx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
     nodeCtx.globalAlpha = 0.8;
@@ -933,35 +963,6 @@ function drawAddHologram(layer, cx, cy, white) {
     nodeCtx.setLineDash([]);
     nodeCtx.restore();
   }
-}
-
-function drawGrid(ox, hot) {
-    for (let r = 0; r < rows; r++) {
-      for (let cc = 0; cc < cols; cc++) {
-        const idx = r * cols + cc, isHot = idx === hot;
-        const px = ox + cc * cellStep, py = topY + r * cellStep;
-        nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.22 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
-        nodeCtx.fillStyle   = isHot ? `rgba(${colorRgb}, ${0.4 * flicker})` : `rgba(${colorRgb}, ${0.06 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
-        nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(isHot ? 0.9 : 0.4) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
-      }
-    }
-  }
-  drawGrid(aX, scanIdx);
-  drawGrid(bX, scanIdx);
-  drawGrid(cX, scanIdx); // result highlighted too
-
-  // + and = symbols
-  const fontSize = Math.max(8, 11 * zoom);
-  nodeCtx.font = `bold ${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
-  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.7 * flicker})`;
-  nodeCtx.fillText('+', aX + gridW + symW / 2, midY);
-  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.5 * flicker})`;
-  nodeCtx.fillText('=', bX + gridW + symW / 2, midY);
-
-  // connector
-  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
-  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, topY + gridH + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
-  nodeCtx.setLineDash([]); nodeCtx.restore();
 }
 
 /* --- BMM hologram: two tall matrices with @ symbol → result --- */
