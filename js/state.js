@@ -73,5 +73,10 @@ let sbResizeStartX = 0, sbResizeStartY = 0;
 let sbResizeOrigX = 0, sbResizeOrigY = 0, sbResizeOrigW = 0, sbResizeOrigH = 0;
 let copiedSuperbox = null;
 
+/* Erase mode */
+let eraseMode = false;
+let _eraseStart = null;
+let _eraseCurrent = null;
+
 /* Visibility */
 let visible = true;
