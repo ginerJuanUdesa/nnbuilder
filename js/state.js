@@ -28,10 +28,12 @@ let selectedLayerId = null;
 let selectedConnIdx = -1;
 let mouseDownDist   = 0;
 let mouseDownX = 0, mouseDownY = 0;
+let lastMouseSX = 0, lastMouseSY = 0; // live cursor screen pos (for paste centering)
 
 /* Connection mode */
 let connectionMode = false;
 let connectStartId = null;
+let connectStartSide = null; // side-centre the in-progress wire starts from
 let connectMouseX  = 0, connectMouseY = 0;
 
 /* Palette drag */

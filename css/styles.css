@@ -183,9 +183,11 @@ body.white-mode .palette-item.type-scale     .name { color: #009988; }
 .strip-btn-sep { border-left: 1px solid rgba(0,255,136,0.15); padding-left: 8px; margin-left: 2px; }
 #connect-toggle.active { color: #ff64ff; opacity: 1; text-shadow: 0 0 8px #ff64ff; }
 #draw-toggle.active    { color: #ffc800; opacity: 1; text-shadow: 0 0 8px #ffc800; }
+#erase-toggle.active   { color: #ff3333; opacity: 1; text-shadow: 0 0 8px #ff3333; }
 body.white-mode #theme-toggle { transform: scaleX(-1); }
 body.white-mode #connect-toggle.active { color: #cc00cc; text-shadow: none; }
 body.white-mode #draw-toggle.active    { color: #b08000; text-shadow: none; }
+body.white-mode #erase-toggle.active   { color: #cc0000; text-shadow: none; }
 #vars-panel {
   position: fixed; top: 90px; right: 16px;
   width: max-content;
