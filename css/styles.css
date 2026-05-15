@@ -139,6 +139,12 @@ body.white-mode .palette-item.type-scale     .name { color: #009988; }
   line-height: 1; display: flex; align-items: center;
 }
 #vars-panel .theme-toggle:hover { opacity: 1; }
+#vars-panel .vars-toggle {
+  cursor: pointer; font-size: 18px; opacity: 0.6; user-select: none;
+  line-height: 1; display: flex; align-items: center; color: #00ff88;
+  transition: opacity 0.15s;
+}
+#vars-panel .vars-toggle:hover { opacity: 1; }
 #vars-panel .var-row {
   display: flex; align-items: center; gap: 6px; margin-bottom: 6px;
 }
