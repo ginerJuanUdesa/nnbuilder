@@ -66,6 +66,11 @@ let _sbDrawCurrent = null;
 let sbDragging = false;
 let sbDragId = null;
 let sbDragOffX = 0, sbDragOffY = 0;
+let sbResizing = false;
+let sbResizeId = null;
+let sbResizeEdge = null;
+let sbResizeStartX = 0, sbResizeStartY = 0;
+let sbResizeOrigX = 0, sbResizeOrigY = 0, sbResizeOrigW = 0, sbResizeOrigH = 0;
 let copiedSuperbox = null;
 
 /* Visibility */

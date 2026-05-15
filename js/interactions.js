@@ -98,7 +98,21 @@ window.addEventListener('mousedown', e => {
     return;
   }
 
-  // ── try superbox ──
+  // ── try superbox edge (resize) ──
+  const sbEdgeHit = hitTestSuperboxEdge(wx, wy);
+  if (sbEdgeHit !== null) {
+    const sb = superboxes[sbEdgeHit.idx];
+    selectedSuperboxId = sb.id;
+    selectedLayerId = null; selectedConnIdx = -1;
+    sbResizing = true; sbResizeId = sb.id; sbResizeEdge = sbEdgeHit.edge;
+    sbResizeStartX = wx; sbResizeStartY = wy;
+    sbResizeOrigX = sb.x; sbResizeOrigY = sb.y;
+    sbResizeOrigW = sb.w; sbResizeOrigH = sb.h;
+    document.body.style.cursor = _SB_EDGE_CURSORS[sbEdgeHit.edge];
+    return;
+  }
+
+  // ── try superbox body (move) ──
   const sbIdx = hitTestSuperbox(wx, wy);
   if (sbIdx !== -1) {
     const sb = superboxes[sbIdx];
@@ -125,6 +139,27 @@ window.addEventListener('mousemove', e => {
   if (drawMode && _sbDrawStart) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
     _sbDrawCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+    nodesDirty = true; return;
+  }
+
+  // superbox resize
+  if (sbResizing) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    const sb = superboxes.find(s => s.id === sbResizeId);
+    if (sb) {
+      const dx = wx - sbResizeStartX, dy = wy - sbResizeStartY;
+      const edge = sbResizeEdge;
+      if (edge.includes('e')) sb.w = Math.max(gridSpacing, sbResizeOrigW + dx);
+      if (edge.includes('s')) sb.h = Math.max(gridSpacing, sbResizeOrigH + dy);
+      if (edge.includes('w')) {
+        const nw = Math.max(gridSpacing, sbResizeOrigW - dx);
+        sb.x = sbResizeOrigX + sbResizeOrigW - nw; sb.w = nw;
+      }
+      if (edge.includes('n')) {
+        const nh = Math.max(gridSpacing, sbResizeOrigH - dy);
+        sb.y = sbResizeOrigY + sbResizeOrigH - nh; sb.h = nh;
+      }
+    }
     nodesDirty = true; return;
   }
 
@@ -159,7 +194,9 @@ window.addEventListener('mousemove', e => {
       document.body.style.cursor = (fromLayer && hit && canConnect(fromLayer, hit)) ? 'pointer' : 'not-allowed';
     } else {
       const [wx, wy] = screenToWorld(e.clientX, e.clientY);
-      document.body.style.cursor = hitTestLayer(wx, wy) ? 'pointer' : 'default';
+      const _edgeH = hitTestSuperboxEdge(wx, wy);
+      if (_edgeH) document.body.style.cursor = _SB_EDGE_CURSORS[_edgeH.edge];
+      else document.body.style.cursor = hitTestLayer(wx, wy) ? 'pointer' : 'default';
     }
     return;
   }
@@ -263,6 +300,19 @@ window.addEventListener('mouseup', e => {
   }
 
   // end superbox drag
+  if (sbResizing) {
+    const sb = superboxes.find(s => s.id === sbResizeId);
+    if (sb) {
+      sb.x = snapToGrid(sb.x); sb.y = snapToGrid(sb.y);
+      sb.w = Math.max(gridSpacing, snapToGrid(sb.w));
+      sb.h = Math.max(gridSpacing, snapToGrid(sb.h));
+    }
+    sbResizing = false; sbResizeId = null; sbResizeEdge = null;
+    saveState(); nodesDirty = true;
+    document.body.style.cursor = 'crosshair';
+    return;
+  }
+
   if (sbDragging) {
     const sb = superboxes.find(s => s.id === sbDragId);
     if (sb) {

@@ -215,6 +215,37 @@ function hitTestLayer(wx, wy) {
   return null;
 }
 
+const _SB_EDGE_CURSORS = {
+  n:'n-resize', s:'s-resize', e:'e-resize', w:'w-resize',
+  ne:'ne-resize', nw:'nw-resize', se:'se-resize', sw:'sw-resize'
+};
+
+function hitTestSuperboxEdge(wx, wy) {
+  const th = Math.max(6, 8 / zoom); // 8 screen px in world space
+  for (let i = superboxes.length - 1; i >= 0; i--) {
+    const sb = superboxes[i];
+    const { x, y, w, h } = sb;
+    const inX  = wx >= x - th && wx <= x + w + th;
+    const inY  = wy >= y - th && wy <= y + h + th;
+    if (!inX || !inY) continue;
+    const onL = wx >= x - th && wx <= x + th;
+    const onR = wx >= x + w - th && wx <= x + w + th;
+    const onT = wy >= y - th && wy <= y + th;
+    const onB = wy >= y + h - th && wy <= y + h + th;
+    // corners first
+    if (onL && onT) return { idx: i, edge: 'nw' };
+    if (onR && onT) return { idx: i, edge: 'ne' };
+    if (onL && onB) return { idx: i, edge: 'sw' };
+    if (onR && onB) return { idx: i, edge: 'se' };
+    // edges
+    if (onL && wy >= y && wy <= y + h) return { idx: i, edge: 'w' };
+    if (onR && wy >= y && wy <= y + h) return { idx: i, edge: 'e' };
+    if (onT && wx >= x && wx <= x + w) return { idx: i, edge: 'n' };
+    if (onB && wx >= x && wx <= x + w) return { idx: i, edge: 's' };
+  }
+  return null;
+}
+
 function hitTestSuperbox(wx, wy) {
   // iterate reverse so top-most (last drawn) is hit first
   for (let i = superboxes.length - 1; i >= 0; i--) {
