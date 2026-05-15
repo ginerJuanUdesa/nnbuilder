@@ -164,7 +164,7 @@ body.white-mode #theme-toggle { transform: scaleX(-1); }
 #vars-panel .var-name:focus { border-color: rgba(0,255,136,0.7); }
 #vars-panel .var-eq { color: rgba(0,255,136,0.45); font-size: 13px; }
 #vars-panel .var-val {
-  width: 140px; background: rgba(0, 20, 40, 0.8);
+  width: 150px; background: rgba(0, 20, 40, 0.8);
   border: 1px solid rgba(0, 136, 255, 0.3); border-radius: 3px;
   color: #ffc800; font-family: 'Courier New', monospace;
   font-size: 15px; padding: 6px 9px; outline: none; text-align: center;
@@ -178,7 +178,7 @@ body.white-mode #theme-toggle { transform: scaleX(-1); }
 }
 #vars-panel .var-del:hover { color: #ff5050; }
 #vars-panel .var-formula {
-  width: 160px; background: rgba(0, 20, 40, 0.8);
+  width: 150px; background: rgba(0, 20, 40, 0.8);
   border: 1px solid rgba(180, 100, 255, 0.4); border-radius: 3px;
   color: #c87af0; font-family: 'Courier New', monospace;
   font-size: 14px; padding: 6px 9px; outline: none; text-align: left;
