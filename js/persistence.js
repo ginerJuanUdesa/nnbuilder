@@ -98,11 +98,14 @@ function exportToFile() {
     variables,
     camera: { x: camX, y: camY, zoom }
   };
+  const raw = prompt('Save as:', 'network');
+  if (raw === null) return; // cancelled
+  const name = (raw.trim() || 'network').replace(/\.nnb$/i, '') + '.nnb';
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = 'network.nnb';
+  a.download = name;
   a.click();
   URL.revokeObjectURL(url);
 }
