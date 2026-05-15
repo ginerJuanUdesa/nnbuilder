@@ -237,12 +237,30 @@ Add branch in `openPropEditor()`. Insert before the `} else if (layer.type === '
 
 ### Step 6 — `index.html`
 
-Add palette item. Order: put it near semantically similar layers.
+Add palette item inside an existing `<div class="palette-group">` block that fits the layer's category, or create a new group if none fits.
+
+**Existing groups (in order):** I / O, Linear, Convolutional, Reshape, Reduction, Matrix Math, Normalization, Elementwise
+
+To add to an existing group — insert the item inside its `<div class="palette-group-items">`:
 
 ```html
 <div class="palette-item type-myop" data-type="myop">
   <div class="name">MYOP</div>
   <div class="desc">Short PyTorch description</div>
+</div>
+```
+
+To add a **new group** — insert the full block in a semantically appropriate position:
+
+```html
+<div class="palette-group">
+  <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">My Group</span></div>
+  <div class="palette-group-items">
+    <div class="palette-item type-myop" data-type="myop">
+      <div class="name">MYOP</div>
+      <div class="desc">Short PyTorch description</div>
+    </div>
+  </div>
 </div>
 ```
 
