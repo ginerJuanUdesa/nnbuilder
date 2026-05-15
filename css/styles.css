@@ -540,3 +540,36 @@ body.white-mode #prop-editor .pe-fn-item { color: rgba(0, 90, 190, 0.6); }
 body.white-mode #prop-editor .pe-fn-item:hover { background: rgba(0, 90, 190, 0.07); color: #005abe; }
 body.white-mode #prop-editor .pe-fn-item.pe-fn-active  { color: #005abe; background: rgba(0, 90, 190, 0.1); }
 body.white-mode #prop-editor .pe-fn-item.pe-fn-focused { background: rgba(0, 90, 190, 0.16); color: #003d8a; }
+
+/* --- Portrait / mobile warning overlay --- */
+#portrait-warning {
+  display: none;
+  position: fixed; inset: 0; z-index: 9999;
+  background: #0a0a0f;
+  align-items: center; justify-content: center;
+  flex-direction: column;
+}
+#portrait-warning-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+  padding: 40px 32px; text-align: center;
+}
+#portrait-icon {
+  font-size: 56px; color: #00ff88;
+  animation: portrait-spin 2s ease-in-out infinite;
+}
+@keyframes portrait-spin {
+  0%, 100% { transform: rotate(0deg); }
+  40%       { transform: rotate(90deg); }
+  60%       { transform: rotate(90deg); }
+}
+#portrait-title {
+  font-family: 'Courier New', monospace; font-size: 22px;
+  font-weight: bold; color: #00ff88; letter-spacing: 4px;
+}
+#portrait-msg {
+  font-family: 'Courier New', monospace; font-size: 13px;
+  color: rgba(255,255,255,0.5); letter-spacing: 1px;
+}
+@media (orientation: portrait) and (max-width: 1024px) {
+  #portrait-warning { display: flex; }
+}
