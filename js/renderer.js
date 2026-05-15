@@ -911,7 +911,7 @@ function drawSuperboxes(white) {
     nodeCtx.restore();
 
     // name label (top-left)
-    if (sb.name && zoom > 0.3) {
+    if (sb.name) {
       const fontSize = Math.max(20, 39 * zoom);
       nodeCtx.save();
       nodeCtx.globalAlpha = isSelected ? 0.95 : 0.65;
@@ -1071,15 +1071,6 @@ function draw() {
       nodeCtx.strokeStyle = color;
       nodeCtx.lineWidth = 1.5;
       nodeCtx.strokeRect(sx, sy, sw, sh);
-      if (sb.name) {
-        const fs = Math.max(8, 11 * zoom);
-        nodeCtx.font = `bold ${fs}px Courier New`;
-        nodeCtx.fillStyle = color;
-        nodeCtx.globalAlpha = 0.9;
-        nodeCtx.textAlign = 'center';
-        nodeCtx.textBaseline = 'middle';
-        nodeCtx.fillText(sb.name, sx + sw / 2, sy + sh / 2);
-      }
       nodeCtx.restore();
     }
   }
