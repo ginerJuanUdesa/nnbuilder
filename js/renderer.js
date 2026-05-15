@@ -15,32 +15,13 @@ function buildGrid() {
   const eGY = Math.ceil(bry  / gridSpacing) + 1;
   const white = document.body.classList.contains('white-mode');
 
-  // Uniform grid: all lines same color, dots at intersections only
-  const lineColor  = white ? 'rgba(0, 0, 0, 0.10)' : 'rgba(0, 255, 136, 0.10)';
-  const majorColor = white ? 'rgba(0, 0, 0, 0.18)' : 'rgba(0, 200, 255, 0.18)';
-  const dotColor   = white ? 'rgba(0, 0, 0, 0.22)' : 'rgba(0, 255, 136, 0.28)';
-
-  // minor lines (every gridSpacing)
-  octx.strokeStyle = lineColor; octx.lineWidth = 0.5; octx.beginPath();
+  // Single uniform color, single pass — no major/minor distinction, no dots
+  const lineColor = white ? 'rgba(80, 140, 200, 0.13)' : 'rgba(80, 160, 255, 0.13)';
+  octx.strokeStyle = lineColor; octx.lineWidth = 0.5;
+  octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
   for (let gy = sGY; gy <= eGY; gy++) { const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
   octx.stroke();
-
-  // major lines (every majorEvery cells) — slightly brighter, same weight
-  octx.strokeStyle = majorColor; octx.lineWidth = 0.5; octx.beginPath();
-  for (let gx = sGX; gx <= eGX; gx++) { if (gx % majorEvery !== 0) continue; const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
-  for (let gy = sGY; gy <= eGY; gy++) { if (gy % majorEvery !== 0) continue; const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
-  octx.stroke();
-
-  // dots at every grid intersection
-  const dotSize = Math.max(1, 1.5 * zoom);
-  for (let gx = sGX; gx <= eGX; gx++) {
-    for (let gy = sGY; gy <= eGY; gy++) {
-      const [sx, sy] = worldToScreen(gx * gridSpacing, gy * gridSpacing);
-      octx.fillStyle = dotColor;
-      octx.fillRect(sx - dotSize / 2, sy - dotSize / 2, dotSize, dotSize);
-    }
-  }
 
   gridCanvas = offscreen;
   gridDirty  = false;
