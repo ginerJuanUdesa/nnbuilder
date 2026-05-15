@@ -178,7 +178,17 @@ window.addEventListener('mousemove', e => {
       });
       // move child superboxes recursively
       const moveSbChildren = (parentId, ddx, ddy) => {
-        superboxes.forEach(c => { if (c.parentId === parentId) { c.x += ddx; c.y += ddy; moveSbChildren(c.id, ddx, ddy); } });
+        superboxes.forEach(c => {
+          if (c.parentId === parentId) {
+            c.x += ddx; c.y += ddy;
+            // move layers owned by this child superbox
+            c.layerIds.forEach(lid => {
+              const cl = layers.find(x => x.id === lid);
+              if (cl) { cl.x += ddx; cl.y += ddy; }
+            });
+            moveSbChildren(c.id, ddx, ddy);
+          }
+        });
       };
       moveSbChildren(sb.id, dx, dy);
     }
@@ -340,7 +350,7 @@ window.addEventListener('mouseup', e => {
   if (sbDragging) {
     const sb = superboxes.find(s => s.id === sbDragId);
     if (sb) {
-      // snap superbox origin to grid, apply same delta to contained layers
+      // snap superbox origin to grid, apply same delta to contained layers + child SBs recursively
       const snappedX = snapToGrid(sb.x);
       const snappedY = snapToGrid(sb.y);
       const dx = snappedX - sb.x;
@@ -350,6 +360,19 @@ window.addEventListener('mouseup', e => {
         const l = layers.find(x => x.id === lid);
         if (l) { l.x = snapToGrid(l.x + dx); l.y = snapToGrid(l.y + dy); }
       });
+      const snapSbChildren = (parentId, ddx, ddy) => {
+        superboxes.forEach(c => {
+          if (c.parentId === parentId) {
+            c.x = snapToGrid(c.x + ddx); c.y = snapToGrid(c.y + ddy);
+            c.layerIds.forEach(lid => {
+              const cl = layers.find(x => x.id === lid);
+              if (cl) { cl.x = snapToGrid(cl.x + ddx); cl.y = snapToGrid(cl.y + ddy); }
+            });
+            snapSbChildren(c.id, ddx, ddy);
+          }
+        });
+      };
+      snapSbChildren(sb.id, dx, dy);
     }
     // assign or remove parent based on where center landed
     const _cx = sb.x + sb.w / 2, _cy = sb.y + sb.h / 2;
