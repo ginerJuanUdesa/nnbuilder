@@ -1332,7 +1332,7 @@ function draw() {
   computeOutputShapes();
   drawOrigin();
   const white = document.body.classList.contains('white-mode');
-  const SB_COLLAPSE_ZOOM = 0.5;
+  const SB_COLLAPSE_ZOOM = 0.25;
 
   // draw connections — clip out collapsed superbox interiors so cross-boundary
   // connections are hidden inside the box but visible outside
