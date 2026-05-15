@@ -16,7 +16,7 @@ function buildGrid() {
   const white = document.body.classList.contains('white-mode');
 
   // Single uniform color, single pass — no major/minor distinction, no dots
-  const lineColor = white ? 'rgba(80, 140, 200, 0.13)' : 'rgba(80, 160, 255, 0.13)';
+  const lineColor = white ? 'rgba(80, 140, 200, 0.20)' : 'rgba(80, 160, 255, 0.20)';
   octx.strokeStyle = lineColor; octx.lineWidth = 0.5;
   octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
