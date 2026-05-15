@@ -52,7 +52,7 @@ let layerDragOrigX = 0, layerDragOrigY = 0;
 let connDragging    = false;
 let connDragIdx     = -1;
 let connDragStartSX = 0;
-let connDragStartOff = 0;
+let connDragStartElbowWX = 0;
 
 /* Copy/paste */
 let clipboard = null;

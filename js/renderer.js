@@ -40,7 +40,9 @@ function buildConnPath(fromLayer, toLayer, conn) {
   const inp = getInputPortPos(toLayer);
   const [sx1, sy1] = worldToScreen(out.x, out.y);
   const [sx2, sy2] = worldToScreen(inp.x, inp.y);
-  const midX = (sx1 + sx2) / 2 + ((conn && conn.midXOffset) ? conn.midXOffset * zoom : 0);
+  const midX = (conn && conn.elbowX !== undefined)
+    ? (conn.elbowX - camX) * zoom + W / 2   // absolute world X → screen
+    : (sx1 + sx2) / 2;                      // auto midpoint
   return [{ x: sx1, y: sy1 }, { x: midX, y: sy1 }, { x: midX, y: sy2 }, { x: sx2, y: sy2 }];
 }
 

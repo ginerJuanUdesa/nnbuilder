@@ -88,7 +88,13 @@ window.addEventListener('mousedown', e => {
     selectedConnIdx = connHit; selectedLayerId = null; closePropEditor();
     connDragIdx      = connHit;
     connDragStartSX  = e.clientX;
-    connDragStartOff = connections[connHit].midXOffset || 0;
+    const _dc = connections[connHit];
+    const _fl = layers.find(l => l.id === _dc.from);
+    const _tl = layers.find(l => l.id === _dc.to);
+    const _autoMidWX = (_fl && _tl)
+      ? (_fl.x + layerTypes[_fl.type].w / 2 + _tl.x - layerTypes[_tl.type].w / 2) / 2
+      : 0;
+    connDragStartElbowWX = (_dc.elbowX !== undefined) ? _dc.elbowX : _autoMidWX;
     return;
   }
 
@@ -162,7 +168,7 @@ window.addEventListener('mousemove', e => {
     const dx = e.clientX - connDragStartSX;
     if (Math.abs(dx) > 3) {
       connDragging = true;
-      connections[connDragIdx].midXOffset = connDragStartOff + dx / zoom;
+      connections[connDragIdx].elbowX = connDragStartElbowWX + dx / zoom;
       nodesDirty = true;
       document.body.style.cursor = 'ew-resize';
       return;
@@ -283,9 +289,7 @@ window.addEventListener('mouseup', e => {
       const fl = layers.find(l => l.id === dc.from);
       const tl = layers.find(l => l.id === dc.to);
       if (fl && tl) {
-        const autoMidX = (fl.x + layerTypes[fl.type].w / 2 + tl.x - layerTypes[tl.type].w / 2) / 2;
-        const absMidX  = autoMidX + (dc.midXOffset || 0);
-        dc.midXOffset  = snapToGrid(absMidX) - autoMidX;
+        dc.elbowX = snapToGrid(dc.elbowX !== undefined ? dc.elbowX : (fl.x + layerTypes[fl.type].w / 2 + tl.x - layerTypes[tl.type].w / 2) / 2);
       }
     }
     connDragging = false; connDragIdx = -1;
