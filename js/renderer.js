@@ -689,6 +689,151 @@ function drawGhost(mx, my) {
 }
 function hideGhost() { ghostEl.style.display = 'none'; }
 
+
+/* --- Unsqueeze hologram: flat strip gains a new bracket dimension --- */
+function drawUnsqueezeHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '176, 32, 112' : '224, 96, 160';
+  const boxH     = layerTypes.unsqueeze.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 3.7 + layer.id * 2.1) * 0.08 + Math.sin(time * 8.9 + layer.id * 0.5) * 0.04;
+  const cols     = 6;
+  const cellSize = Math.max(5, Math.min(11, 8.5 * zoom));
+  const cellGap  = Math.max(1.5, 2 * zoom), cellStep = cellSize + cellGap;
+  const stripW   = cols * cellStep - cellGap;
+  const bracketH = Math.max(6, 9 * zoom);
+  const gap      = Math.max(8, 12 * zoom);
+  const totalH   = bracketH + cellGap + cellSize;
+  const topY     = cy - boxH / 2 - gap - totalH;
+  const stripX   = cx - stripW / 2;
+  const scanIdx  = Math.floor(time * 6) % cols;
+
+  // bracket row (the new dim=1)
+  const bracketY = topY;
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.55 * flicker})`; nodeCtx.lineWidth = 1;
+  nodeCtx.strokeRect(stripX - 2, bracketY, stripW + 4, bracketH);
+  const fontSize = Math.max(6, 7 * zoom);
+  nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.5 * flicker})`;
+  nodeCtx.fillText('1', cx, bracketY + bracketH / 2);
+
+  // original 1D strip
+  const rowY = topY + bracketH + cellGap;
+  for (let i = 0; i < cols; i++) {
+    const px = stripX + i * cellStep, hot = i === scanIdx;
+    nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.25 * flicker})`; nodeCtx.fillRect(px, rowY, cellSize, cellSize);
+    nodeCtx.fillStyle   = hot ? `rgba(${colorRgb}, ${0.4 * flicker})` : `rgba(${colorRgb}, ${0.08 * flicker})`; nodeCtx.fillRect(px, rowY, cellSize, cellSize);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.85 : 0.4) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, rowY, cellSize, cellSize);
+  }
+
+  // connector
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, rowY + cellSize + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
+  nodeCtx.setLineDash([]); nodeCtx.restore();
+}
+
+/* --- Softmax hologram: bar chart normalising to probability distribution --- */
+function drawSoftmaxHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '204, 17, 17' : '255, 51, 51';
+  const boxH     = layerTypes.softmax.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 3.5 + layer.id * 1.8) * 0.08 + Math.sin(time * 9.2 + layer.id * 0.7) * 0.04;
+  const bars     = 5;
+  const barW     = Math.max(5, Math.min(12, 9 * zoom));
+  const barGap   = Math.max(2, 3 * zoom);
+  const barStep  = barW + barGap;
+  const maxH     = Math.max(20, 32 * zoom);
+  const totalW   = bars * barStep - barGap;
+  const gap      = Math.max(8, 12 * zoom);
+  const baseY    = cy - boxH / 2 - gap;
+  const leftX    = cx - totalW / 2;
+
+  // raw logits (pseudo-random, animated shimmer)
+  const logits = Array.from({length: bars}, (_, i) =>
+    0.3 + 0.7 * hashF(layer.id * 17 + i * 7, 0) + 0.12 * Math.sin(time * 1.8 + i * 1.4 + layer.id)
+  );
+  // softmax
+  const expL  = logits.map(x => Math.exp(x * 2));
+  const sumE  = expL.reduce((a, b) => a + b, 0);
+  const probs = expL.map(e => e / sumE);
+
+  // draw bars (heights = softmax probs)
+  const t = Math.abs(Math.sin(time * 0.6 + layer.id)); // slow morph
+  for (let i = 0; i < bars; i++) {
+    const h   = probs[i] * maxH;
+    const px  = leftX + i * barStep;
+    const py  = baseY - h;
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.fillRect(px, py, barW, h);
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${(0.35 + probs[i] * 0.45) * flicker})`; nodeCtx.fillRect(px, py, barW, h);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.55 * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, barW, h);
+  }
+
+  // sum=1 label
+  const fontSize = Math.max(6, 7 * zoom);
+  nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'right'; nodeCtx.textBaseline = 'bottom';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.35 * flicker})`;
+  nodeCtx.fillText('Σ=1', leftX + totalW, baseY - maxH - 2);
+
+  // connector
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, baseY); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
+  nodeCtx.setLineDash([]); nodeCtx.restore();
+}
+
+/* --- Add hologram: two grids + result grid with + symbol --- */
+function drawAddHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '90, 138, 0' : '170, 255, 0';
+  const boxH     = layerTypes.add.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 4.0 + layer.id * 1.6) * 0.08 + Math.sin(time * 9.5 + layer.id * 0.8) * 0.04;
+  const rows = 3, cols = 3;
+  const cellSize = Math.max(5, Math.min(10, 8 * zoom));
+  const cellGap  = Math.max(1.5, 2 * zoom), cellStep = cellSize + cellGap;
+  const gridW    = cols * cellStep - cellGap, gridH = rows * cellStep - cellGap;
+  const gap      = Math.max(6, 9 * zoom);
+  const symW     = Math.max(8, 12 * zoom);
+  const totalW   = gridW * 2 + symW * 2 + gridW; // A + B = C
+  const topY     = cy - boxH / 2 - Math.max(10, 14 * zoom) - gridH;
+  const aX       = cx - totalW / 2;
+  const bX       = aX + gridW + symW;
+  const cX       = bX + gridW + symW;
+  const midY     = topY + gridH / 2;
+  const scanIdx  = Math.floor(time * 5) % (rows * cols);
+
+  function drawGrid(ox, hot) {
+    for (let r = 0; r < rows; r++) {
+      for (let cc = 0; cc < cols; cc++) {
+        const idx = r * cols + cc, isHot = idx === hot;
+        const px = ox + cc * cellStep, py = topY + r * cellStep;
+        nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.22 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+        nodeCtx.fillStyle   = isHot ? `rgba(${colorRgb}, ${0.4 * flicker})` : `rgba(${colorRgb}, ${0.06 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+        nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(isHot ? 0.9 : 0.4) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+      }
+    }
+  }
+  drawGrid(aX, scanIdx);
+  drawGrid(bX, scanIdx);
+  drawGrid(cX, scanIdx); // result highlighted too
+
+  // + and = symbols
+  const fontSize = Math.max(8, 11 * zoom);
+  nodeCtx.font = `bold ${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.7 * flicker})`;
+  nodeCtx.fillText('+', aX + gridW + symW / 2, midY);
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.5 * flicker})`;
+  nodeCtx.fillText('=', bX + gridW + symW / 2, midY);
+
+  // connector
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, topY + gridH + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
+  nodeCtx.setLineDash([]); nodeCtx.restore();
+}
+
 /* --- Main draw: clear → shapes → connections → holograms → boxes --- */
 function draw() {
   nodeCtx.clearRect(0, 0, W, H);
@@ -758,6 +903,9 @@ function draw() {
     if (l.type === 'flatten' && isConnected && !isHologramBlocked(l)) drawFlattenHologram(l, sx, sy, white);
     if (l.type === 'mean' && isConnected && !isHologramBlocked(l)) drawMeanHologram(l, sx, sy, white);
     if (l.type === 'conv' && isConnected && !isHologramBlocked(l)) drawConvHologram(l, sx, sy, white);
+    if (l.type === 'unsqueeze' && isConnected && !isHologramBlocked(l)) drawUnsqueezeHologram(l, sx, sy, white);
+    if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l)) drawSoftmaxHologram(l, sx, sy, white);
+    if (l.type === 'add'       && isConnected && !isHologramBlocked(l)) drawAddHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 
