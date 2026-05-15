@@ -254,8 +254,8 @@ function drawLayerBox(layer, cx, cy) {
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'output') {
-        const shape = layer.outputShape;
-        const text = shape ? `shape: [${shape.join(', ')}]` : '[ NO CONNECTION ]';
+        const dispShape = getDisplayShape(layer.id);
+        const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
