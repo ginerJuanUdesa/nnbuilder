@@ -14,6 +14,7 @@ function openPropEditor(layer) {
   peTitle.style.textShadow = `0 0 6px ${t.color}`;
   propEditor.style.setProperty('--pe-color', t.color);
   propEditor.style.setProperty('--pe-rgb', hexToRgb(t.color));
+  propEditor.style.minWidth = '';
   peBody.innerHTML = '';
 
   /* --- INPUT --- */
@@ -327,13 +328,14 @@ function openPropEditor(layer) {
     const fmtS = s => s ? `[${s.join(', ')}]` : '?';
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(170,136,255,0.4);">${fmtS(src)} → ${fmtS(out)}</span></div>
-      <div class="pe-row"><span class="pe-label">DIM0</span><input class="pe-input" type="number" value="${layer.dim0}" id="pe-t-dim0" step="1" placeholder="0"></div>
-      <div class="pe-row"><span class="pe-label">DIM1</span><input class="pe-input" type="number" value="${layer.dim1}" id="pe-t-dim1" step="1" placeholder="1"></div>
+      <div class="pe-row"><span class="pe-label">DIM0</span><input class="pe-input" type="number" value="${layer.dim0}" id="pe-t-dim0" step="1" placeholder="0" style="width:55px"></div>
+      <div class="pe-row"><span class="pe-label">DIM1</span><input class="pe-input" type="number" value="${layer.dim1}" id="pe-t-dim1" step="1" placeholder="1" style="width:55px"></div>
       <div class="pe-hint">torch.transpose(x, dim0, dim1) — supports negatives</div>`;
     const d0inp = peBody.querySelector('#pe-t-dim0');
     const d1inp = peBody.querySelector('#pe-t-dim1');
     d0inp.addEventListener('change', () => { layer.dim0 = parseInt(d0inp.value) || 0; saveState(); });
     d1inp.addEventListener('change', () => { layer.dim1 = parseInt(d1inp.value) || 1; saveState(); });
+    propEditor.style.minWidth = '130px';
     setTimeout(() => d0inp.focus(), 50);
 
   } else if (layer.type === 'scale') {
