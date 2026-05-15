@@ -215,6 +215,43 @@ function hitTestLayer(wx, wy) {
   return null;
 }
 
+/* --- Superbox nesting helpers --- */
+function sbDepth(sb) {
+  let d = 0, cur = sb;
+  while (cur && cur.parentId) {
+    cur = superboxes.find(s => s.id === cur.parentId);
+    if (++d > 30) break; // cycle guard
+  }
+  return d;
+}
+
+function isSbDescendant(sb, ancestorId) {
+  // returns true if 'sb' is a descendant of ancestorId (to prevent cycles)
+  let cur = sb;
+  while (cur && cur.parentId) {
+    if (cur.parentId === ancestorId) return true;
+    cur = superboxes.find(s => s.id === cur.parentId);
+    if (sbDepth(cur || {}) > 30) break;
+  }
+  return false;
+}
+
+function sbsSortedByDepth() {
+  return [...superboxes].sort((a, b) => sbDepth(a) - sbDepth(b));
+}
+
+/* Find which superbox a world point falls into (deepest child first) */
+function hitTestSuperboxDeepest(wx, wy) {
+  // iterate sorted deepest-first so children take priority
+  const sorted = sbsSortedByDepth().reverse();
+  for (const sb of sorted) {
+    if (wx >= sb.x && wx <= sb.x + sb.w && wy >= sb.y && wy <= sb.y + sb.h) {
+      return superboxes.indexOf(sb);
+    }
+  }
+  return -1;
+}
+
 const _SB_EDGE_CURSORS = {
   n:'n-resize', s:'s-resize', e:'e-resize', w:'w-resize',
   ne:'ne-resize', nw:'nw-resize', se:'se-resize', sw:'sw-resize'
@@ -247,12 +284,7 @@ function hitTestSuperboxEdge(wx, wy) {
 }
 
 function hitTestSuperbox(wx, wy) {
-  // iterate reverse so top-most (last drawn) is hit first
-  for (let i = superboxes.length - 1; i >= 0; i--) {
-    const sb = superboxes[i];
-    if (wx >= sb.x && wx <= sb.x + sb.w && wy >= sb.y && wy <= sb.y + sb.h) return i;
-  }
-  return -1;
+  return hitTestSuperboxDeepest(wx, wy);
 }
 
 /* hitTestConnection calls buildConnPath (defined in renderer.js) — safe at call-time */

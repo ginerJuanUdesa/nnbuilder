@@ -176,6 +176,11 @@ window.addEventListener('mousemove', e => {
         const l = layers.find(x => x.id === lid);
         if (l) { l.x += dx; l.y += dy; }
       });
+      // move child superboxes recursively
+      const moveSbChildren = (parentId, ddx, ddy) => {
+        superboxes.forEach(c => { if (c.parentId === parentId) { c.x += ddx; c.y += ddy; moveSbChildren(c.id, ddx, ddy); } });
+      };
+      moveSbChildren(sb.id, dx, dy);
     }
     nodesDirty = true; return;
   }
@@ -278,12 +283,20 @@ window.addEventListener('mouseup', e => {
       const enclosed = layers.filter(l => {
         return l.x >= x1 && l.x <= x2 && l.y >= y1 && l.y <= y2;
       });
+      const _ncx = (x1 + x2) / 2, _ncy = (y1 + y2) / 2;
+      let _nParent = null;
+      for (const other of sbsSortedByDepth().reverse()) {
+        if (_ncx >= other.x && _ncx <= other.x + other.w && _ncy >= other.y && _ncy <= other.y + other.h) {
+          _nParent = other.id; break;
+        }
+      }
       const newSb = {
         id: nextId++,
         name: '',
         x: x1, y: y1, w: x2 - x1, h: y2 - y1,
         layerIds: enclosed.map(l => l.id),
-        colorIdx: superboxes.length % SUPERBOX_COLORS.length
+        colorIdx: superboxes.length % SUPERBOX_COLORS.length,
+        parentId: _nParent
       };
       superboxes.push(newSb);
       selectedSuperboxId = newSb.id;
@@ -307,6 +320,17 @@ window.addEventListener('mouseup', e => {
       sb.w = Math.max(gridSpacing, snapToGrid(sb.w));
       sb.h = Math.max(gridSpacing, snapToGrid(sb.h));
     }
+    // reassign parent
+    const _rcx = sb.x + sb.w / 2, _rcy = sb.y + sb.h / 2;
+    let _rParent = null;
+    for (const other of sbsSortedByDepth().reverse()) {
+      if (other.id === sb.id) continue;
+      if (isSbDescendant(other, sb.id)) continue;
+      if (_rcx >= other.x && _rcx <= other.x + other.w && _rcy >= other.y && _rcy <= other.y + other.h) {
+        _rParent = other.id; break;
+      }
+    }
+    if (sb) sb.parentId = _rParent;
     sbResizing = false; sbResizeId = null; sbResizeEdge = null;
     saveState(); nodesDirty = true;
     document.body.style.cursor = 'crosshair';
@@ -327,6 +351,17 @@ window.addEventListener('mouseup', e => {
         if (l) { l.x = snapToGrid(l.x + dx); l.y = snapToGrid(l.y + dy); }
       });
     }
+    // assign or remove parent based on where center landed
+    const _cx = sb.x + sb.w / 2, _cy = sb.y + sb.h / 2;
+    let _newParent = null;
+    for (const other of sbsSortedByDepth().reverse()) {
+      if (other.id === sb.id) continue;
+      if (isSbDescendant(other, sb.id)) continue; // cycle guard
+      if (_cx >= other.x && _cx <= other.x + other.w && _cy >= other.y && _cy <= other.y + other.h) {
+        _newParent = other.id; break;
+      }
+    }
+    sb.parentId = _newParent;
     sbDragging = false; sbDragId = null;
     document.body.style.cursor = drawMode ? 'crosshair' : 'default';
     saveState(); nodesDirty = true; return;

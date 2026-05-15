@@ -987,8 +987,9 @@ function drawAddHologram(layer, cx, cy, white) {
 /* --- Superboxes (groups): filled rect + dashed border + name label --- */
 function drawSuperboxes(white) {
   if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)) return;
-  for (let i = 0; i < superboxes.length; i++) {
-    const sb = superboxes[i];
+  const _sbByDepth = sbsSortedByDepth();
+  for (let i = 0; i < _sbByDepth.length; i++) {
+    const sb = _sbByDepth[i];
     const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
     const [sx, sy] = worldToScreen(sb.x, sb.y);
     const sw = sb.w * zoom, sh = sb.h * zoom;
@@ -1011,16 +1012,18 @@ function drawSuperboxes(white) {
     nodeCtx.setLineDash([]);
     nodeCtx.restore();
 
-    // name label (top-left)
+    // name label (top-left, indented by depth)
     if (sb.name) {
-      const fontSize = Math.max(20, 39 * zoom);
+      const depth    = sbDepth(sb);
+      const fontSize = Math.max(20, (39 - depth * 5) * zoom);
+      const indent   = depth * Math.max(8, 10 * zoom);
       nodeCtx.save();
       nodeCtx.globalAlpha = isSelected ? 0.95 : 0.65;
       nodeCtx.font = `bold ${fontSize}px Courier New`;
       nodeCtx.fillStyle = color;
       nodeCtx.textAlign = 'left';
       nodeCtx.textBaseline = 'bottom';
-      nodeCtx.fillText(sb.name, sx + 6, sy - 3);
+      nodeCtx.fillText(sb.name, sx + 6 + indent, sy - 3);
       nodeCtx.restore();
     }
   }
@@ -1294,6 +1297,7 @@ function draw() {
     nodeCtx.beginPath();
     nodeCtx.rect(-1, -1, nodeCanvas.width + 2, nodeCanvas.height + 2); // outer boundary
     for (const sb of superboxes) {
+      if (sb.parentId) continue; // only root boxes; children hidden by parent hole
       const [_sx, _sy] = worldToScreen(sb.x, sb.y);
       nodeCtx.rect(_sx, _sy, sb.w * zoom, sb.h * zoom);   // punch holes
     }
@@ -1362,7 +1366,7 @@ function draw() {
 
   // draw superbox collapsed fills when zoomed out (before layers so they're under)
   if (zoom <= SB_COLLAPSE_ZOOM) {
-    for (const sb of superboxes) {
+    for (const sb of sbsSortedByDepth()) {
       const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
       const [sx, sy] = worldToScreen(sb.x, sb.y);
       const sw = sb.w * zoom, sh = sb.h * zoom;

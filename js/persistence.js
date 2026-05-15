@@ -15,7 +15,7 @@ function _applySnap(raw) {
   layers.length      = 0; (data.layers      || []).forEach(l => layers.push(l));
   connections.length = 0; (data.connections || []).forEach(c => connections.push(c));
   variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
-  superboxes.length  = 0; (data.superboxes  || []).forEach(s => superboxes.push(s));
+  superboxes.length  = 0; (data.superboxes  || []).forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
   nextId     = data.nextId || 1;
   ensureBatchVar();
   nodesDirty = true;
@@ -79,7 +79,7 @@ function loadState() {
       });
       if (data.connections) data.connections.forEach(c => connections.push(c));
       if (data.variables) variables.push(...data.variables);
-      if (data.superboxes) data.superboxes.forEach(s => superboxes.push(s));
+      if (data.superboxes) data.superboxes.forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
       nextId = data.nextId || 1;
       camX   = data.camX  || 0;
       camY   = data.camY  || 0;
@@ -141,7 +141,7 @@ function importFromFile() {
         layers.length      = 0; (data.layers      || []).forEach(l => layers.push(l));
         connections.length = 0; (data.connections || []).forEach(c => connections.push(c));
         variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
-        superboxes.length  = 0; (data.superboxes  || []).forEach(s => superboxes.push(s));
+        superboxes.length  = 0; (data.superboxes  || []).forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
         nextId = data.nextId || 1;
         if (data.camera) { camX = data.camera.x || 0; camY = data.camera.y || 0; zoom = data.camera.zoom || 1; }
         ensureBatchVar();
