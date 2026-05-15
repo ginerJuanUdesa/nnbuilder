@@ -98,6 +98,19 @@ window.addEventListener('mousedown', e => {
     return;
   }
 
+  // ── try superbox eye button ──
+  {
+    const [scx, scy] = [e.clientX, e.clientY];
+    for (const btn of _sbEyeBtns) {
+      const dx = scx - btn.cx, dy = scy - btn.cy;
+      if (dx * dx + dy * dy <= btn.r * btn.r * 2.5) {
+        const sb = superboxes.find(s => s.id === btn.sbId);
+        if (sb) { sb.bgVisible = sb.bgVisible === false ? true : false; saveState(); nodesDirty = true; }
+        return;
+      }
+    }
+  }
+
   // ── try superbox edge (resize) ──
   const sbEdgeHit = hitTestSuperboxEdge(wx, wy);
   if (sbEdgeHit !== null) {

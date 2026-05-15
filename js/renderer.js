@@ -2,6 +2,8 @@
    renderer.js — all canvas drawing functions
    ============================================================ */
 
+let _sbEyeBtns = []; // [{sbId, cx, cy, r}] rebuilt each frame — read by interactions.js
+
 /* --- Grid (cached offscreen canvas) --- */
 function buildGrid() {
   const offscreen = document.createElement('canvas');
@@ -986,6 +988,7 @@ function drawAddHologram(layer, cx, cy, white) {
 
 /* --- Superboxes (groups): filled rect + dashed border + name label --- */
 function drawSuperboxes(white) {
+  _sbEyeBtns = []; // reset each frame
   if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)) return;
   const _sbByDepth = sbsSortedByDepth();
   for (let i = 0; i < _sbByDepth.length; i++) {
@@ -996,12 +999,14 @@ function drawSuperboxes(white) {
     const sw = sb.w * zoom, sh = sb.h * zoom;
     const isSelected = sb.id === selectedSuperboxId;
 
-    // fill
-    nodeCtx.save();
-    nodeCtx.globalAlpha = white ? 0.07 : 0.08;
-    nodeCtx.fillStyle = color;
-    nodeCtx.fillRect(sx, sy, sw, sh);
-    nodeCtx.restore();
+    // fill (skipped when bgVisible === false)
+    if (sb.bgVisible !== false) {
+      nodeCtx.save();
+      nodeCtx.globalAlpha = white ? 0.07 : 0.08;
+      nodeCtx.fillStyle = color;
+      nodeCtx.fillRect(sx, sy, sw, sh);
+      nodeCtx.restore();
+    }
 
     // border
     nodeCtx.save();
@@ -1013,18 +1018,57 @@ function drawSuperboxes(white) {
     nodeCtx.setLineDash([]);
     nodeCtx.restore();
 
-    // name label (top-left, indented by depth)
-    if (sb.name) {
+    // name label + eye button (top-left, indented by depth)
+    {
       const depth    = sbDepth(sb);
-      const fontSize = Math.max(20, (39 - depth * 5) * zoom);
+      const fontSize = Math.max(11, (39 - depth * 5) * zoom);
       const indent   = depth * Math.max(8, 10 * zoom);
-      nodeCtx.save();
-      nodeCtx.globalAlpha = isSelected ? 0.95 : 0.65;
+      const eyeR     = Math.max(5, fontSize * 0.45);
+      const labelAlpha = isSelected ? 0.95 : 0.65;
+
+      // measure name width to position eye after it
       nodeCtx.font = `bold ${fontSize}px Courier New`;
-      nodeCtx.fillStyle = color;
-      nodeCtx.textAlign = 'left';
-      nodeCtx.textBaseline = 'bottom';
-      nodeCtx.fillText(sb.name, sx + 6 + indent, sy - 3);
+      const nameW  = sb.name ? nodeCtx.measureText(sb.name).width : 0;
+      const labelX = sx + 6 + indent;
+      const labelY = sy - 3;
+      const eyeCX  = labelX + nameW + (sb.name ? eyeR * 1.5 : eyeR * 0.5);
+      const eyeCY  = labelY - fontSize * 0.38;
+
+      // store hit area for interactions.js
+      _sbEyeBtns.push({ sbId: sb.id, cx: eyeCX, cy: eyeCY, r: eyeR });
+
+      if (sb.name) {
+        nodeCtx.save();
+        nodeCtx.globalAlpha = labelAlpha;
+        nodeCtx.fillStyle = color;
+        nodeCtx.textAlign = 'left';
+        nodeCtx.textBaseline = 'bottom';
+        nodeCtx.fillText(sb.name, labelX, labelY);
+        nodeCtx.restore();
+      }
+
+      // draw eye icon
+      const eyeVisible = sb.bgVisible !== false;
+      nodeCtx.save();
+      nodeCtx.globalAlpha = labelAlpha * (eyeVisible ? 1 : 0.55);
+      nodeCtx.strokeStyle = color;
+      nodeCtx.fillStyle   = color;
+      nodeCtx.lineWidth   = Math.max(1, eyeR * 0.28);
+      // outer ellipse (eye whites)
+      nodeCtx.beginPath();
+      nodeCtx.ellipse(eyeCX, eyeCY, eyeR, eyeR * 0.6, 0, 0, Math.PI * 2);
+      nodeCtx.stroke();
+      // pupil
+      nodeCtx.beginPath();
+      nodeCtx.arc(eyeCX, eyeCY, eyeR * 0.3, 0, Math.PI * 2);
+      nodeCtx.fill();
+      if (!eyeVisible) {
+        // strikethrough
+        nodeCtx.beginPath();
+        nodeCtx.moveTo(eyeCX - eyeR * 0.85, eyeCY + eyeR * 0.55);
+        nodeCtx.lineTo(eyeCX + eyeR * 0.85, eyeCY - eyeR * 0.55);
+        nodeCtx.stroke();
+      }
       nodeCtx.restore();
     }
   }
