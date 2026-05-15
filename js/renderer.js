@@ -226,11 +226,10 @@ function drawLayerBox(layer, cx, cy) {
       } else if (layer.type === 'add') {
         const inc = connections.filter(cc => cc.to === layer.id);
         const outShape = shapeCache[layer.id];
-        const shapes = inc.map(cc => shapeCache[cc.from]).filter(Boolean);
-        const allMatch = shapes.length > 1 && shapes.every(s => JSON.stringify(s) === JSON.stringify(shapes[0]));
+        const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const status = inc.length === 0 ? 'no inputs'
-          : !outShape ? 'shape mismatch!'
-          : `${inc.length}× [${outShape.join(', ')}]`;
+          : !outShape ? 'incompatible shapes!'
+          : `${inc.length}× [${dispShape ? dispShape.join(', ') : outShape.join(', ')}]`;
         nodeCtx.fillStyle = (!outShape && inc.length > 0) ? '#ff4444' : (white ? tColor : `rgba(${hexToRgb(tColor)}, 0.55)`);
         nodeCtx.measureText(status).width > boxHalfW * 2
           ? wrapText(status, cx, baseY, boxHalfW * 2, subFontStr)

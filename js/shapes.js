@@ -150,10 +150,19 @@ function computeOutputShapes() {
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const shapes = incoming.map(c => resolveShape(c.from)).filter(Boolean);
       if (shapes.length === 0) { shapeCache[layerId] = null; return null; }
-      const ref = JSON.stringify(shapes[0]);
-      const allMatch = shapes.every(s => JSON.stringify(s) === ref);
-      // if mismatch still return first shape (user sees mismatched sub-text)
-      shapeCache[layerId] = allMatch ? [...shapes[0]] : null;
+      // PyTorch broadcasting: pad leading 1s, output dim = max of each position
+      // incompatible if two non-1 dims at same position differ
+      const maxNdim = Math.max(...shapes.map(s => s.length));
+      const padded  = shapes.map(s => [...Array(maxNdim - s.length).fill(1), ...s]);
+      const out = [];
+      let compatible = true;
+      for (let i = 0; i < maxNdim; i++) {
+        const dims    = padded.map(s => s[i]);
+        const nonOnes = dims.filter(d => d !== 1);
+        if (nonOnes.length > 0 && !nonOnes.every(d => d === nonOnes[0])) { compatible = false; break; }
+        out.push(nonOnes.length > 0 ? nonOnes[0] : 1);
+      }
+      shapeCache[layerId] = compatible ? out : null;
       return shapeCache[layerId];
     }
 
