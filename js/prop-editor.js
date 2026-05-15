@@ -327,8 +327,8 @@ function openPropEditor(layer) {
     const fmtS = s => s ? `[${s.join(', ')}]` : '?';
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(170,136,255,0.4);">${fmtS(src)} → ${fmtS(out)}</span></div>
-      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIM0</span><input class="pe-input" type="number" value="${layer.dim0}" id="pe-t-dim0" step="1" placeholder="0"></div>
-      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">DIM1</span><input class="pe-input" type="number" value="${layer.dim1}" id="pe-t-dim1" step="1" placeholder="1"></div>
+      <div class="pe-row"><span class="pe-label">DIM0</span><input class="pe-input" type="number" value="${layer.dim0}" id="pe-t-dim0" step="1" placeholder="0"></div>
+      <div class="pe-row"><span class="pe-label">DIM1</span><input class="pe-input" type="number" value="${layer.dim1}" id="pe-t-dim1" step="1" placeholder="1"></div>
       <div class="pe-hint">torch.transpose(x, dim0, dim1) — supports negatives</div>`;
     const d0inp = peBody.querySelector('#pe-t-dim0');
     const d1inp = peBody.querySelector('#pe-t-dim1');
