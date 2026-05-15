@@ -90,14 +90,14 @@ function drawLayerBox(layer, cx, cy) {
     const bgMap = {
       input:   'rgba(210, 242, 224, 0.97)',
       linear:  'rgba(210, 228, 255, 0.97)',
-      flatten: 'rgba(255, 242, 195, 0.97)',
+      flatten: 'rgba(235, 195,  90, 0.97)',
       output:  'rgba(238, 210, 255, 0.97)',
       mean:    'rgba(255, 228, 200, 0.97)',
       conv:    'rgba(200, 238, 244, 0.97)',
       unsqueeze: 'rgba(248, 220, 238, 0.97)',
       squeeze:   'rgba(238, 220, 255, 0.97)',
       softmax:   'rgba(255, 220, 220, 0.97)',
-      add:       'rgba(230, 255, 210, 0.97)',
+      add:       'rgba(195, 235, 165, 0.97)',
       matmul:    'rgba(255, 235, 200, 0.97)',
       scale:     'rgba(200, 245, 238, 0.97)',
       transpose:  'rgba(225, 215, 255, 0.97)',
@@ -990,7 +990,8 @@ function drawSuperboxes(white) {
   const _sbByDepth = sbsSortedByDepth();
   for (let i = 0; i < _sbByDepth.length; i++) {
     const sb = _sbByDepth[i];
-    const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
+    const _sbPalette = white ? SUPERBOX_COLORS_LIGHT : SUPERBOX_COLORS;
+    const color = _sbPalette[sb.colorIdx % _sbPalette.length];
     const [sx, sy] = worldToScreen(sb.x, sb.y);
     const sw = sb.w * zoom, sh = sb.h * zoom;
     const isSelected = sb.id === selectedSuperboxId;
@@ -1367,11 +1368,12 @@ function draw() {
   // draw superbox collapsed fills when zoomed out (before layers so they're under)
   if (zoom <= SB_COLLAPSE_ZOOM) {
     for (const sb of sbsSortedByDepth()) {
-      const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
+      const _colPal = white ? SUPERBOX_COLORS_LIGHT : SUPERBOX_COLORS;
+      const color = _colPal[sb.colorIdx % _colPal.length];
       const [sx, sy] = worldToScreen(sb.x, sb.y);
       const sw = sb.w * zoom, sh = sb.h * zoom;
       nodeCtx.save();
-      nodeCtx.globalAlpha = white ? 0.22 : 0.18;
+      nodeCtx.globalAlpha = white ? 0.30 : 0.18;
       nodeCtx.fillStyle = color;
       nodeCtx.fillRect(sx, sy, sw, sh);
       nodeCtx.globalAlpha = 0.7;
