@@ -16,7 +16,7 @@ function buildGrid() {
   const white = document.body.classList.contains('white-mode');
 
   // Single uniform color, single pass — no major/minor distinction, no dots
-  const lineColor = white ? 'rgba(80, 140, 200, 0.20)' : 'rgba(80, 160, 255, 0.20)';
+  const lineColor = white ? 'rgba(60, 120, 200, 0.35)' : 'rgba(80, 160, 255, 0.26)';
   octx.strokeStyle = lineColor; octx.lineWidth = 0.5;
   octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
@@ -93,8 +93,10 @@ function drawLayerBox(layer, cx, cy) {
       mean:    'rgba(255, 228, 200, 0.97)',
       conv:    'rgba(200, 238, 244, 0.97)',
       unsqueeze: 'rgba(248, 220, 238, 0.97)',
+      squeeze:   'rgba(238, 220, 255, 0.97)',
       softmax:   'rgba(255, 220, 220, 0.97)',
       add:       'rgba(230, 255, 210, 0.97)',
+      bmm:       'rgba(255, 235, 200, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
