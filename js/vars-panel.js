@@ -27,3 +27,7 @@ document.getElementById('vars-add').addEventListener('click', () => {
   const inputs = document.querySelectorAll('#vars-list .var-name');
   if (inputs.length) inputs[inputs.length - 1].focus();
 });
+
+document.getElementById('save-file').addEventListener('click', exportToFile);
+
+document.getElementById('load-file').addEventListener('click', importFromFile);
