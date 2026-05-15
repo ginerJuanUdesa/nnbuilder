@@ -1217,13 +1217,6 @@ function draw() {
     const fromLayer = layers.find(l => l.id === c.from);
     const toLayer   = layers.find(l => l.id === c.to);
     if (!fromLayer || !toLayer) continue;
-    // hide connections whose both endpoints are inside a collapsed superbox
-    if (zoom <= SB_COLLAPSE_ZOOM) {
-      const fromIn = superboxes.some(sb => sb.layerIds.includes(c.from));
-      const toIn   = superboxes.some(sb => sb.layerIds.includes(c.to));
-      if (fromIn && toIn) continue;
-    }
-
     const path       = buildConnPath(fromLayer, toLayer, c);
     const ft         = layerTypes[fromLayer.type];
     const isSelected = ci === selectedConnIdx;
