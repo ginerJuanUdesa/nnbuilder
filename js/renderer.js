@@ -1197,7 +1197,7 @@ function draw() {
   computeOutputShapes();
   drawOrigin();
   const white = document.body.classList.contains('white-mode');
-  const SB_COLLAPSE_ZOOM = 0.35;
+  const SB_COLLAPSE_ZOOM = 0.5;
 
   // draw connections
   for (let ci = 0; ci < connections.length; ci++) {
@@ -1206,7 +1206,7 @@ function draw() {
     const toLayer   = layers.find(l => l.id === c.to);
     if (!fromLayer || !toLayer) continue;
     // hide connections whose both endpoints are inside a collapsed superbox
-    if (zoom < SB_COLLAPSE_ZOOM) {
+    if (zoom <= SB_COLLAPSE_ZOOM) {
       const fromIn = superboxes.some(sb => sb.layerIds.includes(c.from));
       const toIn   = superboxes.some(sb => sb.layerIds.includes(c.to));
       if (fromIn && toIn) continue;
@@ -1250,7 +1250,7 @@ function draw() {
   drawSuperboxes(white);
 
   // draw superbox collapsed fills when zoomed out (before layers so they're under)
-  if (zoom < SB_COLLAPSE_ZOOM) {
+  if (zoom <= SB_COLLAPSE_ZOOM) {
     for (const sb of superboxes) {
       const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
       const [sx, sy] = worldToScreen(sb.x, sb.y);
@@ -1273,7 +1273,7 @@ function draw() {
     const isConnected = connections.some(c => c.from === l.id || c.to === l.id);
     const inSuperbox  = superboxes.some(sb => sb.layerIds.includes(l.id));
     // when zoomed out, hide layers inside superboxes (show collapsed superbox instead)
-    if (inSuperbox && zoom < SB_COLLAPSE_ZOOM) continue;
+    if (inSuperbox && zoom <= SB_COLLAPSE_ZOOM) continue;
 
     if (l.type === 'input'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawCSVHologram(l, sx, sy, white);
     if (l.type === 'linear'  && isConnected && !isHologramBlocked(l) && !inSuperbox) drawNeuronHologram(l, sx, sy, white);
