@@ -64,12 +64,7 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 let _varsOpen = false;
 document.getElementById('vars-toggle').addEventListener('click', () => {
   _varsOpen = !_varsOpen;
-  const list    = document.getElementById('vars-list');
-  const addBtn  = document.getElementById('vars-add');
-  const toggleBtn = document.getElementById('vars-toggle');
-  list.style.display    = _varsOpen ? '' : 'none';
-  addBtn.style.display  = _varsOpen ? '' : 'none';
-  toggleBtn.textContent = _varsOpen ? '▾' : '▸';
+  document.getElementById('vars-panel').style.display = _varsOpen ? '' : 'none';
 });
 
 document.getElementById('vars-add').addEventListener('click', () => {
