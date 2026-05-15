@@ -66,7 +66,7 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   padding: 7px 14px;
   cursor: pointer;
   font-family: 'Courier New', monospace;
-  font-size: 11px; font-weight: bold;
+  font-size: 14px; font-weight: bold;
   text-transform: uppercase; letter-spacing: 1.5px;
   color: rgba(0, 255, 136, 0.5);
   transition: color 0.15s, background 0.15s;
@@ -248,7 +248,7 @@ body.white-mode #vars-panel .var-computed { color: rgba(160, 100, 0, 0.7); }
   box-shadow: 0 0 20px rgba(var(--pe-rgb, 0, 255, 136), 0.15);
 }
 #prop-editor .pe-title {
-  font-size: 11px; font-weight: bold;
+  font-size: 14px; font-weight: bold;
   color: var(--pe-color, #00ff88); text-transform: uppercase;
   letter-spacing: 1px; margin-bottom: 8px;
   text-shadow: 0 0 6px var(--pe-color, #00ff88);
