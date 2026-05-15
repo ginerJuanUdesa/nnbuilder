@@ -249,6 +249,15 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* LAYERNORM: nn.LayerNorm — normalizes over last N dims, shape is pass-through */
+    if (layer.type === 'layernorm') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[incoming.length - 1].from);
+      shapeCache[layerId] = srcShape ? [...srcShape] : null;
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);
@@ -312,6 +321,20 @@ function computeOutputShapes() {
       } else {
         c.paramCount = 0; c.paramLabel = 'shared W'; c.paramLabelTop = '';
       }
+    } else if (toLayer.type === 'layernorm' && toLayer.elementwise_affine !== false) {
+      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const isFirst = allIncoming[0] === c;
+      if (isFirst) {
+        // normalized_shape: user-set or infer from last dim of incoming shape
+        const rawNS  = toLayer.normalized_shape;
+        const ns     = rawNS !== undefined
+          ? (Array.isArray(rawNS) ? rawNS.map(v => resolveVal(v)).reduce((a, b) => a * b, 1) : resolveVal(rawNS))
+          : (fromShape[fromShape.length - 1] || 1);
+        c.paramCount    = 2 * ns;
+        c.paramLabel    = `γ[${ns}]  β[${ns}]`;
+        c.paramLabelTop = `2×${ns}=${(2 * ns).toLocaleString()}`;
+        totalParams    += c.paramCount;
+      } else { c.paramCount = 0; c.paramLabel = 'shared LN'; c.paramLabelTop = ''; }
     } else {
       c.paramCount = 0; c.paramLabel = ''; c.paramLabelTop = '';
     }

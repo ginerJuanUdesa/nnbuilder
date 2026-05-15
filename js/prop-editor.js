@@ -344,6 +344,46 @@ function openPropEditor(layer) {
     propEditor.style.minWidth = '130px';
     setTimeout(() => d0inp.focus(), 50);
 
+  } else if (layer.type === 'layernorm') {
+    peTitle.textContent = 'LAYER NORM';
+    if (layer.normalized_shape === undefined) layer.normalized_shape = '';
+    if (layer.eps               === undefined) layer.eps               = '1e-5';
+    if (layer.elementwise_affine === undefined) layer.elementwise_affine = true;
+
+    // Infer normalized_shape from incoming shape if not set
+    const _inc = connections.filter(c => c.to === layer.id);
+    const _src = _inc.length > 0 ? shapeCache[_inc[_inc.length - 1].from] : null;
+    const _lastDim = _src ? _src[_src.length - 1] : '';
+    const _nsPlaceholder = _lastDim !== '' ? String(_lastDim) : '64';
+
+    peBody.innerHTML = `
+      <div class="pe-row">
+        <span class="pe-label">NORM SHAPE</span>
+        <input class="pe-input" type="text" id="pe-ln-ns" value="${layer.normalized_shape}" placeholder="${_nsPlaceholder}">
+      </div>
+      <div class="pe-row">
+        <span class="pe-label">EPS</span>
+        <input class="pe-input" type="text" id="pe-ln-eps" value="${layer.eps}" style="width:80px">
+      </div>
+      <div class="pe-row">
+        <span class="pe-label">AFFINE</span>
+        <input type="checkbox" id="pe-ln-aff" ${layer.elementwise_affine ? 'checked' : ''} style="accent-color:var(--pe-color);width:16px;height:16px">
+      </div>
+      <div class="pe-hint">nn.LayerNorm — normalizes last dim(s), shape passthrough</div>`;
+
+    peBody.querySelector('#pe-ln-ns').addEventListener('change', e => {
+      const raw = e.target.value.trim();
+      layer.normalized_shape = raw === '' ? '' : (isNaN(raw) ? raw : parseInt(raw));
+      saveState();
+    });
+    peBody.querySelector('#pe-ln-eps').addEventListener('change', e => {
+      layer.eps = e.target.value.trim() || '1e-5'; saveState();
+    });
+    peBody.querySelector('#pe-ln-aff').addEventListener('change', e => {
+      layer.elementwise_affine = e.target.checked; saveState();
+    });
+    setTimeout(() => peBody.querySelector('#pe-ln-ns').focus(), 50);
+
   } else if (layer.type === 'scale') {
     peTitle.textContent = 'SCALE';
     if (layer.op     === undefined) layer.op     = '/';

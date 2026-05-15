@@ -100,7 +100,8 @@ function drawLayerBox(layer, cx, cy) {
       add:       'rgba(230, 255, 210, 0.97)',
       bmm:       'rgba(255, 235, 200, 0.97)',
       scale:     'rgba(200, 245, 238, 0.97)',
-      transpose: 'rgba(225, 215, 255, 0.97)',
+      transpose:  'rgba(225, 215, 255, 0.97)',
+      layernorm:  'rgba(210, 245, 230, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -1081,6 +1082,80 @@ function drawTransposeHologram(layer, cx, cy, white) {
   nodeCtx.restore();
 }
 
+
+function drawLayerNormHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '10, 122, 80' : '52, 211, 153';
+  const boxH     = layerTypes.layernorm.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 2.8 + layer.id * 1.3) * 0.09 + Math.sin(time * 7.0 + layer.id * 0.7) * 0.04;
+  const gap      = Math.max(8, 11 * zoom);
+  const curveW   = Math.max(40, 56 * zoom);
+  const curveH   = Math.max(16, 22 * zoom);
+  const topY     = cy - boxH / 2 - gap - curveH - Math.max(8, 10 * zoom);
+  const arrowGap = Math.max(6, 8 * zoom);
+  const totalW   = curveW * 2 + arrowGap * 2 + Math.max(8, 10 * zoom);
+  const lx       = cx - totalW / 2;  // left curve center
+  const rx       = lx + curveW + arrowGap * 2 + Math.max(8, 10 * zoom);  // right curve center
+  const midY     = topY + curveH / 2;
+
+  // Draw a curve using points (skewed/ragged left = raw, bell right = normalized)
+  const pts = 24;
+
+  // Left: jagged / skewed distribution
+  nodeCtx.beginPath();
+  for (let i = 0; i <= pts; i++) {
+    const t2 = i / pts;
+    const xp = lx - curveW / 2 + t2 * curveW;
+    // skewed: leans left, asymmetric
+    const g  = Math.exp(-Math.pow((t2 - 0.35) * 3.5, 2)) * 0.9
+              + Math.exp(-Math.pow((t2 - 0.65) * 5, 2)) * 0.3;
+    const yp = midY + curveH / 2 - g * curveH;
+    i === 0 ? nodeCtx.moveTo(xp, yp) : nodeCtx.lineTo(xp, yp);
+  }
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.5 * flicker})`;
+  nodeCtx.lineWidth = Math.max(1, 1.5 * zoom); nodeCtx.stroke();
+  // fill under
+  nodeCtx.lineTo(lx + curveW / 2, midY + curveH / 2);
+  nodeCtx.lineTo(lx - curveW / 2, midY + curveH / 2);
+  nodeCtx.closePath();
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.12 * flicker})`; nodeCtx.fill();
+
+  // Arrow →
+  const ax = lx + curveW / 2 + 2, ay = midY;
+  nodeCtx.beginPath();
+  nodeCtx.moveTo(ax, ay); nodeCtx.lineTo(ax + arrowGap, ay);
+  const ar = Math.max(3, 3.5 * zoom);
+  nodeCtx.moveTo(ax + arrowGap, ay); nodeCtx.lineTo(ax + arrowGap - ar, ay - ar * 0.55);
+  nodeCtx.moveTo(ax + arrowGap, ay); nodeCtx.lineTo(ax + arrowGap - ar, ay + ar * 0.55);
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.55 * flicker})`;
+  nodeCtx.lineWidth = Math.max(1, 1.3 * zoom); nodeCtx.stroke();
+
+  // Right: symmetric Gaussian
+  nodeCtx.beginPath();
+  for (let i = 0; i <= pts; i++) {
+    const t2 = i / pts;
+    const xp = rx - curveW / 2 + t2 * curveW;
+    const g  = Math.exp(-Math.pow((t2 - 0.5) * 4, 2));
+    const yp = midY + curveH / 2 - g * curveH;
+    i === 0 ? nodeCtx.moveTo(xp, yp) : nodeCtx.lineTo(xp, yp);
+  }
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.85 * flicker})`;
+  nodeCtx.lineWidth = Math.max(1, 1.5 * zoom); nodeCtx.stroke();
+  nodeCtx.lineTo(rx + curveW / 2, midY + curveH / 2);
+  nodeCtx.lineTo(rx - curveW / 2, midY + curveH / 2);
+  nodeCtx.closePath();
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.fill();
+
+  // μ=0 σ=1 label under right bell
+  const fs = Math.max(6, 8 * zoom);
+  nodeCtx.font = `${fs}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'top';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.6 * flicker})`;
+  nodeCtx.fillText('μ=0  σ=1', rx, midY + curveH / 2 + 2);
+
+  nodeCtx.restore();
+}
 function drawScaleHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
@@ -1323,6 +1398,7 @@ function draw() {
     if (l.type === 'matmul'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawMatmulHologram(l, sx, sy, white);
     if (l.type === 'scale'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawScaleHologram(l, sx, sy, white);
     if (l.type === 'transpose' && isConnected && !isHologramBlocked(l) && !inSuperbox) drawTransposeHologram(l, sx, sy, white);
+    if (l.type === 'layernorm' && isConnected && !isHologramBlocked(l) && !inSuperbox) drawLayerNormHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 
