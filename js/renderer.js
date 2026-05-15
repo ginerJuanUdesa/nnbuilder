@@ -1016,7 +1016,8 @@ function draw() {
     const path       = buildConnPath(fromLayer, toLayer);
     const ft         = layerTypes[fromLayer.type];
     const isSelected = ci === selectedConnIdx;
-    const col        = isSelected ? 'rgba(255, 255, 255, 0.9)' : `rgba(${hexToRgb(ft.color)}, 0.4)`;
+    const connAlpha  = white ? 0.75 : 0.4;
+    const col        = isSelected ? (white ? 'rgba(0,0,0,0.9)' : 'rgba(255, 255, 255, 0.9)') : `rgba(${hexToRgb(white ? ft.lightColor || ft.color : ft.color)}, ${connAlpha})`;
     drawPath(path, col, isSelected ? '#ffffff' : ft.color, isSelected ? 3.5 : 2);
 
     if (c.paramLabel && zoom > 0.3) {
@@ -1049,11 +1050,41 @@ function draw() {
   // draw superboxes (below layers)
   drawSuperboxes(white);
 
+  // draw superbox collapsed fills when zoomed out (before layers so they're under)
+  const SB_COLLAPSE_ZOOM = 0.35;
+  if (zoom < SB_COLLAPSE_ZOOM) {
+    for (const sb of superboxes) {
+      const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
+      const [sx, sy] = worldToScreen(sb.x, sb.y);
+      const sw = sb.w * zoom, sh = sb.h * zoom;
+      nodeCtx.save();
+      nodeCtx.globalAlpha = white ? 0.22 : 0.18;
+      nodeCtx.fillStyle = color;
+      nodeCtx.fillRect(sx, sy, sw, sh);
+      nodeCtx.globalAlpha = 0.7;
+      nodeCtx.strokeStyle = color;
+      nodeCtx.lineWidth = 1.5;
+      nodeCtx.strokeRect(sx, sy, sw, sh);
+      if (sb.name) {
+        const fs = Math.max(8, 11 * zoom);
+        nodeCtx.font = `bold ${fs}px Courier New`;
+        nodeCtx.fillStyle = color;
+        nodeCtx.globalAlpha = 0.9;
+        nodeCtx.textAlign = 'center';
+        nodeCtx.textBaseline = 'middle';
+        nodeCtx.fillText(sb.name, sx + sw / 2, sy + sh / 2);
+      }
+      nodeCtx.restore();
+    }
+  }
+
   // draw layers + holograms
   for (const l of layers) {
     const [sx, sy]   = worldToScreen(l.x, l.y);
     const isConnected = connections.some(c => c.from === l.id || c.to === l.id);
     const inSuperbox  = superboxes.some(sb => sb.layerIds.includes(l.id));
+    // when zoomed out, hide layers inside superboxes (show collapsed superbox instead)
+    if (inSuperbox && zoom < SB_COLLAPSE_ZOOM) continue;
 
     if (l.type === 'input'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawCSVHologram(l, sx, sy, white);
     if (l.type === 'linear'  && isConnected && !isHologramBlocked(l) && !inSuperbox) drawNeuronHologram(l, sx, sy, white);
