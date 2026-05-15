@@ -302,18 +302,18 @@ window.addEventListener('mouseup', e => {
       if (overlapsAny(snappedX, snappedY, layer.id)) { layer.x = layerDragOrigX; layer.y = layerDragOrigY; }
       else { layer.x = snappedX; layer.y = snappedY; }
 
-      // Remove layer from any superbox it no longer sits inside
+      // Sync superbox membership based on final position
       const t   = layerTypes[layer.type] || { w: 140, h: 70 };
       const cx  = layer.x + t.w / 2;
       const cy  = layer.y + t.h / 2;
-      let ejected = false;
+      let membershipChanged = false;
       for (const sb of superboxes) {
-        const idx = sb.layerIds.indexOf(layer.id);
-        if (idx === -1) continue;
         const inside = cx >= sb.x && cx <= sb.x + sb.w && cy >= sb.y && cy <= sb.y + sb.h;
-        if (!inside) { sb.layerIds.splice(idx, 1); ejected = true; }
+        const idx    = sb.layerIds.indexOf(layer.id);
+        if (inside && idx === -1)  { sb.layerIds.push(layer.id); membershipChanged = true; }
+        if (!inside && idx !== -1) { sb.layerIds.splice(idx, 1); membershipChanged = true; }
       }
-      if (ejected) saveState();
+      if (membershipChanged) saveState();
     }
     layerDragging = false; layerDragId = null; document.body.style.cursor = 'crosshair'; gridDirty = true;
     return;
