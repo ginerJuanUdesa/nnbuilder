@@ -1199,7 +1199,19 @@ function draw() {
   const white = document.body.classList.contains('white-mode');
   const SB_COLLAPSE_ZOOM = 0.5;
 
-  // draw connections
+  // draw connections — clip out collapsed superbox interiors so cross-boundary
+  // connections are hidden inside the box but visible outside
+  const _sbCollapsed = zoom <= SB_COLLAPSE_ZOOM && superboxes.length > 0;
+  if (_sbCollapsed) {
+    nodeCtx.save();
+    nodeCtx.beginPath();
+    nodeCtx.rect(-1, -1, nodeCanvas.width + 2, nodeCanvas.height + 2); // outer boundary
+    for (const sb of superboxes) {
+      const [_sx, _sy] = worldToScreen(sb.x, sb.y);
+      nodeCtx.rect(_sx, _sy, sb.w * zoom, sb.h * zoom);   // punch holes
+    }
+    nodeCtx.clip('evenodd');
+  }
   for (let ci = 0; ci < connections.length; ci++) {
     const c         = connections[ci];
     const fromLayer = layers.find(l => l.id === c.from);
@@ -1261,6 +1273,7 @@ function draw() {
       nodeCtx.stroke();
     }
   }
+  if (_sbCollapsed) nodeCtx.restore(); // end clip region
 
   // draw superboxes (below layers)
   drawSuperboxes(white);
