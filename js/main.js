@@ -24,8 +24,9 @@ function loop(ts) {
 
   if (gridDirty) nodesDirty = true;
 
-  const hasFlatten  = layers.some(l => l.type === 'flatten' && connections.some(c => c.from === l.id || c.to === l.id));
-  const isAnimating = connectionMode || layerDragging || panDragging || !!paletteDragType || hasFlatten;
+  const animatedTypes = ['flatten', 'unsqueeze', 'softmax', 'add', 'conv', 'mean', 'linear', 'input'];
+  const hasAnimated  = layers.some(l => animatedTypes.includes(l.type) && connections.some(c => c.from === l.id || c.to === l.id));
+  const isAnimating = connectionMode || layerDragging || panDragging || !!paletteDragType || hasAnimated;
 
   if (!gridDirty && !nodesDirty && !isAnimating) return;
 
