@@ -87,3 +87,25 @@ document.getElementById('vars-add').addEventListener('click', () => {
 document.getElementById('save-file').addEventListener('click', exportToFile);
 
 document.getElementById('load-file').addEventListener('click', importFromFile);
+
+/* ── Strip button: active-state sync helper ── */
+function syncStripButtons() {
+  const connBtn = document.getElementById('connect-toggle');
+  const drawBtn = document.getElementById('draw-toggle');
+  if (connBtn) connBtn.classList.toggle('active', !!connectionMode);
+  if (drawBtn) drawBtn.classList.toggle('active', !!drawMode);
+}
+
+document.getElementById('connect-toggle').addEventListener('click', () => {
+  connectionMode = !connectionMode; connectStartId = null;
+  if (connectionMode) { drawMode = false; _sbDrawStart = null; _sbDrawCurrent = null; document.body.style.cursor = 'default'; }
+  nodesDirty = true; syncStripButtons();
+});
+
+document.getElementById('draw-toggle').addEventListener('click', () => {
+  drawMode = !drawMode;
+  if (drawMode) { connectionMode = false; connectStartId = null; }
+  _sbDrawStart = null; _sbDrawCurrent = null;
+  document.body.style.cursor = drawMode ? 'crosshair' : 'default';
+  nodesDirty = true; syncStripButtons();
+});

@@ -298,7 +298,7 @@ window.addEventListener('wheel', e => {
 /* --- Right-click: exit connect mode / delete connection / teleport --- */
 window.addEventListener('contextmenu', e => {
   e.preventDefault();
-  if (connectionMode) { connectionMode = false; connectStartId = null; return; }
+  if (connectionMode) { connectionMode = false; connectStartId = null; syncStripButtons(); return; }
   const connIdx = hitTestConnection(e.clientX, e.clientY);
   if (connIdx !== -1) { connections.splice(connIdx, 1); selectedConnIdx = -1; saveState(); return; }
   selectedConnIdx = -1;
@@ -355,7 +355,7 @@ window.addEventListener('keydown', e => {
   if ((e.key === 'c' || e.key === 'C') && !e.ctrlKey && !e.metaKey
       && document.activeElement.tagName !== 'INPUT'
       && document.activeElement.tagName !== 'TEXTAREA') {
-    connectionMode = !connectionMode; connectStartId = null; nodesDirty = true; closePropEditor();
+    connectionMode = !connectionMode; connectStartId = null; nodesDirty = true; closePropEditor(); syncStripButtons();
     return;
   }
   if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey
@@ -365,7 +365,7 @@ window.addEventListener('keydown', e => {
     if (drawMode) { connectionMode = false; connectStartId = null; }
     _sbDrawStart = null; _sbDrawCurrent = null;
     document.body.style.cursor = drawMode ? 'crosshair' : 'default';
-    nodesDirty = true;
+    nodesDirty = true; syncStripButtons();
     return;
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {
