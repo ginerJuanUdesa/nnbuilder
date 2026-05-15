@@ -29,57 +29,63 @@
     </button>
   </span>
 </div>
-  <div class="palette-item type-input" data-type="input">
-    <div class="name">INPUT</div>
-    <div class="desc">Input layer</div>
-  </div>
-  <div class="palette-item type-linear" data-type="linear">
-    <div class="name">LINEAR</div>
-    <div class="desc">Fully connected</div>
-  </div>
-  <div class="palette-item type-flatten" data-type="flatten">
-    <div class="name">FLATTEN</div>
-    <div class="desc">Collapse to 1D</div>
-  </div>
-  <div class="palette-item type-mean" data-type="mean">
-    <div class="name">MEAN</div>
-    <div class="desc">Reduce over dim(s)</div>
-  </div>
-  <div class="palette-item type-conv" data-type="conv">
-    <div class="name">CONV</div>
-    <div class="desc">1D/2D/3D convolution</div>
-  </div>
-  <div class="palette-item type-matmul" data-type="matmul">
-    <div class="name">MATMUL</div>
-    <div class="desc">torch.matmul (A @ B)</div>
-  </div>
-  <div class="palette-item type-add" data-type="add">
-    <div class="name">ADD</div>
-    <div class="desc">Element-wise sum</div>
-  </div>
-  <div class="palette-item type-softmax" data-type="softmax">
-    <div class="name">SOFTMAX</div>
-    <div class="desc">Normalize over dim</div>
-  </div>
-  <div class="palette-item type-transpose" data-type="transpose">
-    <div class="name">TRANSPOSE</div>
-    <div class="desc">torch.transpose dim0↔dim1</div>
-  </div>
-  <div class="palette-item type-scale" data-type="scale">
-    <div class="name">SCALE</div>
-    <div class="desc">Element-wise ×÷ scalar</div>
-  </div>
-  <div class="palette-item type-squeeze" data-type="squeeze">
-    <div class="name">SQUEEZE</div>
-    <div class="desc">Remove size-1 dim(s)</div>
-  </div>
-  <div class="palette-item type-unsqueeze" data-type="unsqueeze">
-    <div class="name">UNSQUEEZE</div>
-    <div class="desc">Insert size-1 dim</div>
-  </div>
-  <div class="palette-item type-output" data-type="output">
-    <div class="name">OUTPUT</div>
-    <div class="desc">Network output</div>
+  <div id="palette-scroll">
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">I / O</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-input" data-type="input"><div class="name">INPUT</div><div class="desc">Input layer</div></div>
+        <div class="palette-item type-output" data-type="output"><div class="name">OUTPUT</div><div class="desc">Network output</div></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">Linear</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-linear" data-type="linear"><div class="name">LINEAR</div><div class="desc">Fully connected</div></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">Convolutional</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-conv" data-type="conv"><div class="name">CONV</div><div class="desc">1D/2D/3D convolution</div></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">Reshape</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-flatten" data-type="flatten"><div class="name">FLATTEN</div><div class="desc">Collapse to 1D</div></div>
+        <div class="palette-item type-squeeze" data-type="squeeze"><div class="name">SQUEEZE</div><div class="desc">Remove size-1 dim(s)</div></div>
+        <div class="palette-item type-unsqueeze" data-type="unsqueeze"><div class="name">UNSQUEEZE</div><div class="desc">Insert size-1 dim</div></div>
+        <div class="palette-item type-transpose" data-type="transpose"><div class="name">TRANSPOSE</div><div class="desc">torch.transpose dim0↔dim1</div></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">Reduction</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-mean" data-type="mean"><div class="name">MEAN</div><div class="desc">Reduce over dim(s)</div></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">Matrix Math</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-matmul" data-type="matmul"><div class="name">MATMUL</div><div class="desc">torch.matmul (A @ B)</div></div>
+        <div class="palette-item type-scale" data-type="scale"><div class="name">SCALE</div><div class="desc">Element-wise ×÷ scalar</div></div>
+      </div>
+    </div>
+
+    <div class="palette-group">
+      <div class="palette-group-header"><span class="group-arrow">▸</span><span class="group-name">Elementwise</span></div>
+      <div class="palette-group-items">
+        <div class="palette-item type-add" data-type="add"><div class="name">ADD</div><div class="desc">Element-wise sum</div></div>
+        <div class="palette-item type-softmax" data-type="softmax"><div class="name">SOFTMAX</div><div class="desc">Normalize over dim</div></div>
+      </div>
+    </div>
+
   </div>
 </div>
 

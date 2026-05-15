@@ -7,10 +7,18 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   position: fixed; top: 0; left: 0; bottom: 0; width: 240px;
   background: rgba(5, 10, 20, 0.95);
   border-right: 1px solid rgba(0, 255, 136, 0.2);
-  padding: 12px 0;
+  padding: 12px 0 0 0;
   z-index: 10;
   user-select: none;
+  display: flex; flex-direction: column;
 }
+#palette-scroll {
+  overflow-y: auto; flex: 1;
+  padding-bottom: 12px;
+}
+#palette-scroll::-webkit-scrollbar { width: 4px; }
+#palette-scroll::-webkit-scrollbar-track { background: transparent; }
+#palette-scroll::-webkit-scrollbar-thumb { background: rgba(0,255,136,0.2); border-radius: 2px; }
 #palette-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 6px 10px 10px 16px;
@@ -52,6 +60,26 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
 .palette-item.dragging {
   opacity: 0.4;
 }
+.palette-group { margin-bottom: 2px; }
+.palette-group-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 11px; font-weight: bold;
+  text-transform: uppercase; letter-spacing: 1.5px;
+  color: rgba(0, 255, 136, 0.5);
+  transition: color 0.15s, background 0.15s;
+  user-select: none;
+}
+.palette-group-header:hover { color: #00ff88; background: rgba(0,255,136,0.04); }
+.palette-group-header.open { color: #00ff88; }
+.group-arrow {
+  font-size: 9px; transition: transform 0.15s; display: inline-block;
+}
+.palette-group-header.open .group-arrow { transform: rotate(90deg); }
+.palette-group-items { display: none; }
+.palette-group-items.open { display: block; }
 .palette-item .name {
   font-size: 14px; font-weight: bold;
   color: #00ff88;
@@ -318,6 +346,10 @@ body.white-mode #vars-panel .var-computed { color: rgba(160, 100, 0, 0.7); }
    Accents: saturated daylight versions of each layer colour
 */
 body.white-mode { background: #e8eaed; }
+
+body.white-mode .palette-group-header { color: rgba(0, 90, 60, 0.5); }
+body.white-mode .palette-group-header:hover,
+body.white-mode .palette-group-header.open { color: #0a7a3e; }
 
 body.white-mode #palette {
   background: #ffffff;

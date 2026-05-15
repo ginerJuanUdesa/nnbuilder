@@ -387,3 +387,11 @@ window.addEventListener('keydown', e => {
     }
   }
 });
+
+/* Palette group toggle */
+document.querySelectorAll('.palette-group-header').forEach(header => {
+  header.addEventListener('click', () => {
+    header.classList.toggle('open');
+    header.nextElementSibling.classList.toggle('open');
+  });
+});
