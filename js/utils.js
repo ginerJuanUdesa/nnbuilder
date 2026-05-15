@@ -144,6 +144,15 @@ function hitTestLayer(wx, wy) {
   return null;
 }
 
+function hitTestSuperbox(wx, wy) {
+  // iterate reverse so top-most (last drawn) is hit first
+  for (let i = superboxes.length - 1; i >= 0; i--) {
+    const sb = superboxes[i];
+    if (wx >= sb.x && wx <= sb.x + sb.w && wy >= sb.y && wy <= sb.y + sb.h) return i;
+  }
+  return -1;
+}
+
 /* hitTestConnection calls buildConnPath (defined in renderer.js) — safe at call-time */
 function hitTestConnection(sx, sy, threshold) {
   const th = threshold || 8;

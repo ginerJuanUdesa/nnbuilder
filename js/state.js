@@ -51,5 +51,16 @@ let layerDragOrigX = 0, layerDragOrigY = 0;
 /* Copy/paste */
 let clipboard = null;
 
+/* Superboxes */
+let superboxes = [];
+let selectedSuperboxId = null;
+let drawMode = false;
+let _sbDrawStart = null;
+let _sbDrawCurrent = null;
+let sbDragging = false;
+let sbDragId = null;
+let sbDragOffX = 0, sbDragOffY = 0;
+let copiedSuperbox = null;
+
 /* Visibility */
 let visible = true;

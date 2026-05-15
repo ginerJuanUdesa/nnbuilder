@@ -43,6 +43,14 @@ window.addEventListener('mousedown', e => {
     return;
   }
 
+  // ── draw mode: start superbox rect ──
+  if (drawMode) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    _sbDrawStart = { wx, wy };
+    _sbDrawCurrent = { wx, wy };
+    return;
+  }
+
   // ── normal mode: try layer first ──
   const [wx, wy] = screenToWorld(e.clientX, e.clientY);
   const hit = hitTestLayer(wx, wy);
@@ -77,8 +85,20 @@ window.addEventListener('mousedown', e => {
   const connHit = hitTestConnection(e.clientX, e.clientY, 8);
   if (connHit !== -1) { selectedConnIdx = connHit; selectedLayerId = null; closePropEditor(); return; }
 
+  // ── try superbox ──
+  const sbIdx = hitTestSuperbox(wx, wy);
+  if (sbIdx !== -1) {
+    const sb = superboxes[sbIdx];
+    selectedSuperboxId = sb.id;
+    selectedLayerId = null; selectedConnIdx = -1;
+    sbDragging = true; sbDragId = sb.id;
+    sbDragOffX = wx - sb.x; sbDragOffY = wy - sb.y;
+    document.body.style.cursor = 'move';
+    return;
+  }
+
   // ── nothing hit: deselect + pan ──
-  selectedConnIdx = -1; selectedLayerId = null; closePropEditor();
+  selectedConnIdx = -1; selectedLayerId = null; selectedSuperboxId = null; closePropEditor();
   panDragging = true; panStartX = e.clientX; panStartY = e.clientY; panCamX = camX; panCamY = camY;
   document.body.style.cursor = 'grabbing';
 });
@@ -86,6 +106,30 @@ window.addEventListener('mousedown', e => {
 /* --- Mouse move --- */
 window.addEventListener('mousemove', e => {
   if (paletteDragType) { drawGhost(e.clientX, e.clientY); gridDirty = true; return; }
+
+  // draw mode live preview
+  if (drawMode && _sbDrawStart) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    _sbDrawCurrent = { wx, wy };
+    nodesDirty = true; return;
+  }
+
+  // superbox drag
+  if (sbDragging) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    const sb = superboxes.find(s => s.id === sbDragId);
+    if (sb) {
+      const dx = wx - sbDragOffX - sb.x;
+      const dy = wy - sbDragOffY - sb.y;
+      sb.x += dx; sb.y += dy;
+      // move all contained layers
+      sb.layerIds.forEach(lid => {
+        const l = layers.find(x => x.id === lid);
+        if (l) { l.x += dx; l.y += dy; }
+      });
+    }
+    nodesDirty = true; return;
+  }
 
   if (connectionMode) {
     if (panDragging) {
@@ -157,6 +201,51 @@ window.addEventListener('mouseup', e => {
     return;
   }
 
+  // finalize superbox draw
+  if (drawMode && _sbDrawStart && _sbDrawCurrent) {
+    const x1 = Math.min(_sbDrawStart.wx, _sbDrawCurrent.wx);
+    const y1 = Math.min(_sbDrawStart.wy, _sbDrawCurrent.wy);
+    const x2 = Math.max(_sbDrawStart.wx, _sbDrawCurrent.wx);
+    const y2 = Math.max(_sbDrawStart.wy, _sbDrawCurrent.wy);
+    if (x2 - x1 > 20 && y2 - y1 > 20) {
+      const enclosed = layers.filter(l => {
+        const t = layerTypes[l.type];
+        return l.x >= x1 && l.x <= x2 && l.y >= y1 && l.y <= y2;
+      });
+      const newSb = {
+        id: nextId++,
+        name: '',
+        x: x1, y: y1, w: x2 - x1, h: y2 - y1,
+        layerIds: enclosed.map(l => l.id),
+        colorIdx: superboxes.length % SUPERBOX_COLORS.length
+      };
+      superboxes.push(newSb);
+      selectedSuperboxId = newSb.id;
+      selectedLayerId = null;
+      saveState();
+      // immediately open name editor
+      openSuperboxEditor(newSb);
+    }
+    _sbDrawStart = null; _sbDrawCurrent = null;
+    nodesDirty = true;
+    return;
+  }
+
+  // end superbox drag
+  if (sbDragging) {
+    const sb = superboxes.find(s => s.id === sbDragId);
+    if (sb) {
+      // snap layers to grid
+      sb.layerIds.forEach(lid => {
+        const l = layers.find(x => x.id === lid);
+        if (l) { l.x = snapToGrid(l.x); l.y = snapToGrid(l.y); }
+      });
+    }
+    sbDragging = false; sbDragId = null;
+    document.body.style.cursor = drawMode ? 'crosshair' : 'default';
+    saveState(); nodesDirty = true; return;
+  }
+
   if (layerDragging) {
     const layer = layers.find(l => l.id === layerDragId);
     if (layer) {
@@ -178,7 +267,9 @@ window.addEventListener('dblclick', e => {
   if (propEditor.contains(e.target)) return;
   const [wx, wy] = screenToWorld(e.clientX, e.clientY);
   const hit = hitTestLayer(wx, wy);
-  if (hit) openPropEditor(hit);
+  if (hit) { openPropEditor(hit); return; }
+  const sbIdx = hitTestSuperbox(wx, wy);
+  if (sbIdx !== -1) openSuperboxEditor(superboxes[sbIdx]);
 });
 
 /* --- Zoom via scroll wheel --- */
@@ -217,6 +308,10 @@ window.addEventListener('keydown', e => {
     e.preventDefault(); redo(); return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    if (selectedSuperboxId !== null && !propEditor.contains(document.activeElement)) {
+      const sb = superboxes.find(s => s.id === selectedSuperboxId);
+      if (sb) { copySuperbox(sb); return; }
+    }
     if (selectedLayerId !== null && !propEditor.contains(document.activeElement)) {
       const src = layers.find(l => l.id === selectedLayerId);
       if (src) clipboard = JSON.parse(JSON.stringify(src));
@@ -224,6 +319,9 @@ window.addEventListener('keydown', e => {
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+    if (copiedSuperbox && !propEditor.contains(document.activeElement)) {
+      pasteSuperbox(); return;
+    }
     if (!clipboard || propEditor.contains(document.activeElement)) return;
     const offset = gridSpacing * 2;
     let nx = snapToGrid(clipboard.x + offset), ny = snapToGrid(clipboard.y + offset);
@@ -248,7 +346,22 @@ window.addEventListener('keydown', e => {
     connectionMode = !connectionMode; connectStartId = null; nodesDirty = true; closePropEditor();
     return;
   }
+  if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey
+      && document.activeElement.tagName !== 'INPUT'
+      && document.activeElement.tagName !== 'TEXTAREA') {
+    drawMode = !drawMode;
+    if (drawMode) { connectionMode = false; connectStartId = null; }
+    _sbDrawStart = null; _sbDrawCurrent = null;
+    document.body.style.cursor = drawMode ? 'crosshair' : 'default';
+    nodesDirty = true;
+    return;
+  }
   if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (selectedSuperboxId !== null && !propEditor.contains(document.activeElement)) {
+      const idx = superboxes.findIndex(s => s.id === selectedSuperboxId);
+      if (idx !== -1) { superboxes.splice(idx, 1); selectedSuperboxId = null; saveState(); }
+      return;
+    }
     if (selectedConnIdx >= 0) {
       connections.splice(selectedConnIdx, 1); selectedConnIdx = -1; saveState();
     } else if (selectedLayerId !== null && !propEditor.contains(document.activeElement)) {

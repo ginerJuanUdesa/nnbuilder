@@ -383,3 +383,31 @@ function closePropEditor() {
 }
 
 peClose.addEventListener('click', closePropEditor);
+
+function openSuperboxEditor(sb) {
+  selectedSuperboxId = sb.id;
+  selectedLayerId = null;
+  const peTitle = document.getElementById('pe-title');
+  const peBody  = document.getElementById('pe-body');
+  peTitle.textContent = 'GROUP';
+  peTitle.style.color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
+  peTitle.style.textShadow = '';
+  propEditor.style.setProperty('--pe-color', SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length]);
+  propEditor.style.setProperty('--pe-rgb', hexToRgb(SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length]));
+  peBody.innerHTML = '';
+
+  const nameRow = document.createElement('div'); nameRow.className = 'pe-row';
+  const nameLbl = document.createElement('span'); nameLbl.className = 'pe-label'; nameLbl.textContent = 'NAME';
+  const nameInp = document.createElement('input'); nameInp.className = 'pe-input'; nameInp.value = sb.name || ''; nameInp.placeholder = 'group name';
+  nameInp.addEventListener('input', () => { sb.name = nameInp.value; nodesDirty = true; });
+  nameInp.addEventListener('change', () => saveState());
+  nameRow.appendChild(nameLbl); nameRow.appendChild(nameInp);
+  peBody.appendChild(nameRow);
+
+  const infoRow = document.createElement('div'); infoRow.className = 'pe-hint';
+  infoRow.textContent = `${sb.layerIds.length} layer${sb.layerIds.length !== 1 ? 's' : ''} · Ctrl+C/V to copy`;
+  peBody.appendChild(infoRow);
+
+  propEditor.style.display = 'block';
+  setTimeout(() => nameInp.focus(), 50);
+}

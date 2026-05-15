@@ -7,7 +7,7 @@ const redoStack = [];
 let _prevSnap   = null;
 
 function _snap() {
-  return JSON.stringify({ layers, connections, nextId, variables });
+  return JSON.stringify({ layers, connections, nextId, variables, superboxes });
 }
 
 function _applySnap(raw) {
@@ -15,6 +15,7 @@ function _applySnap(raw) {
   layers.length      = 0; (data.layers      || []).forEach(l => layers.push(l));
   connections.length = 0; (data.connections || []).forEach(c => connections.push(c));
   variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
+  superboxes.length  = 0; (data.superboxes  || []).forEach(s => superboxes.push(s));
   nextId     = data.nextId || 1;
   nodesDirty = true;
   gridDirty  = true;
@@ -23,7 +24,7 @@ function _applySnap(raw) {
 function _persistLocal() {
   try {
     localStorage.setItem('nn-grid', JSON.stringify({
-      layers, connections, nextId, camX, camY, zoom, variables
+      layers, connections, nextId, camX, camY, zoom, variables, superboxes
     }));
   } catch (e) {}
 }
@@ -76,6 +77,7 @@ function loadState() {
       });
       if (data.connections) data.connections.forEach(c => connections.push(c));
       if (data.variables) variables.push(...data.variables);
+      if (data.superboxes) data.superboxes.forEach(s => superboxes.push(s));
       nextId = data.nextId || 1;
       camX   = data.camX  || 0;
       camY   = data.camY  || 0;
@@ -148,4 +150,46 @@ function importFromFile() {
     reader.readAsText(file);
   };
   input.click();
+}
+
+/* ============================================================
+   Superbox copy/paste
+   ============================================================ */
+
+function copySuperbox(sb) {
+  copiedSuperbox = JSON.parse(JSON.stringify(sb));
+}
+
+function pasteSuperbox() {
+  if (!copiedSuperbox) return;
+  const dx = gridSpacing * 2, dy = gridSpacing * 2;
+  const idMap = {};
+  // duplicate layers
+  const newLayers = copiedSuperbox.layerIds.map(id => {
+    const l = layers.find(x => x.id === id);
+    if (!l) return null;
+    const nl = JSON.parse(JSON.stringify(l));
+    nl.id = nextId++;
+    nl.x += dx; nl.y += dy;
+    idMap[l.id] = nl.id;
+    return nl;
+  }).filter(Boolean);
+  // duplicate internal connections only
+  const newConns = connections.filter(c =>
+    copiedSuperbox.layerIds.includes(c.from) && copiedSuperbox.layerIds.includes(c.to)
+  ).map(c => ({ from: idMap[c.from], to: idMap[c.to] }));
+  newLayers.forEach(l => layers.push(l));
+  newConns.forEach(c => connections.push(c));
+  const newSb = {
+    id: nextId++,
+    name: copiedSuperbox.name ? copiedSuperbox.name + ' copy' : '',
+    x: copiedSuperbox.x + dx, y: copiedSuperbox.y + dy,
+    w: copiedSuperbox.w, h: copiedSuperbox.h,
+    layerIds: newLayers.map(l => l.id),
+    colorIdx: copiedSuperbox.colorIdx
+  };
+  superboxes.push(newSb);
+  selectedSuperboxId = newSb.id;
+  selectedLayerId = null;
+  saveState();
 }

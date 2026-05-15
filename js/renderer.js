@@ -877,7 +877,65 @@ function drawAddHologram(layer, cx, cy, white) {
   const midY     = topY + gridH / 2;
   const scanIdx  = Math.floor(time * 5) % (rows * cols);
 
-  function drawGrid(ox, hot) {
+  function drawSuperboxes(white) {
+  if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)) return;
+  for (let i = 0; i < superboxes.length; i++) {
+    const sb = superboxes[i];
+    const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
+    const [sx, sy] = worldToScreen(sb.x, sb.y);
+    const sw = sb.w * zoom, sh = sb.h * zoom;
+    const isSelected = sb.id === selectedSuperboxId;
+
+    // fill
+    nodeCtx.save();
+    nodeCtx.globalAlpha = white ? 0.07 : 0.08;
+    nodeCtx.fillStyle = color;
+    nodeCtx.fillRect(sx, sy, sw, sh);
+    nodeCtx.restore();
+
+    // border
+    nodeCtx.save();
+    nodeCtx.globalAlpha = isSelected ? 0.9 : 0.45;
+    nodeCtx.strokeStyle = color;
+    nodeCtx.lineWidth = isSelected ? 2 : 1;
+    if (!isSelected) nodeCtx.setLineDash([6, 4]);
+    nodeCtx.strokeRect(sx, sy, sw, sh);
+    nodeCtx.setLineDash([]);
+    nodeCtx.restore();
+
+    // name label (top-left)
+    if (sb.name && zoom > 0.3) {
+      const fontSize = Math.max(10, 13 * zoom);
+      nodeCtx.save();
+      nodeCtx.globalAlpha = isSelected ? 0.95 : 0.65;
+      nodeCtx.font = `bold ${fontSize}px Courier New`;
+      nodeCtx.fillStyle = color;
+      nodeCtx.textAlign = 'left';
+      nodeCtx.textBaseline = 'bottom';
+      nodeCtx.fillText(sb.name, sx + 6, sy - 3);
+      nodeCtx.restore();
+    }
+  }
+
+  // live draw rect while in draw mode
+  if (drawMode && _sbDrawStart && _sbDrawCurrent) {
+    const [ax, ay] = worldToScreen(_sbDrawStart.wx, _sbDrawStart.wy);
+    const [bx, by] = worldToScreen(_sbDrawCurrent.wx, _sbDrawCurrent.wy);
+    nodeCtx.save();
+    nodeCtx.globalAlpha = 0.35;
+    nodeCtx.fillStyle = '#ffffff';
+    nodeCtx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    nodeCtx.globalAlpha = 0.8;
+    nodeCtx.strokeStyle = '#ffffff';
+    nodeCtx.lineWidth = 1.5;
+    nodeCtx.setLineDash([5, 4]);
+    nodeCtx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    nodeCtx.setLineDash([]);
+    nodeCtx.restore();
+  }
+}
+
+function drawGrid(ox, hot) {
     for (let r = 0; r < rows; r++) {
       for (let cc = 0; cc < cols; cc++) {
         const idx = r * cols + cc, isHot = idx === hot;
@@ -1009,6 +1067,9 @@ function draw() {
       nodeCtx.stroke();
     }
   }
+
+  // draw superboxes (below layers)
+  drawSuperboxes(white);
 
   // draw layers + holograms
   for (const l of layers) {
