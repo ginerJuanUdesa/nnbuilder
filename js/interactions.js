@@ -277,6 +277,17 @@ window.addEventListener('mouseup', e => {
   }
 
   if (connDragging) {
+    // Snap elbow X to grid on drop
+    const dc = connections[connDragIdx];
+    if (dc) {
+      const fl = layers.find(l => l.id === dc.from);
+      const tl = layers.find(l => l.id === dc.to);
+      if (fl && tl) {
+        const autoMidX = (fl.x + layerTypes[fl.type].w / 2 + tl.x - layerTypes[tl.type].w / 2) / 2;
+        const absMidX  = autoMidX + (dc.midXOffset || 0);
+        dc.midXOffset  = snapToGrid(absMidX) - autoMidX;
+      }
+    }
     connDragging = false; connDragIdx = -1;
     saveState(); nodesDirty = true;
     document.body.style.cursor = 'default';
