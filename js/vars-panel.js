@@ -9,7 +9,7 @@ function renderVarsPanel() {
       row.className = 'var-row var-row-batch';
       const nameSpan = document.createElement('span');
       nameSpan.className = 'var-name var-name-locked';
-      nameSpan.textContent = 'B';
+      nameSpan.textContent = 'BATCH';
       const eq = document.createElement('span'); eq.className = 'var-eq'; eq.textContent = '=';
       const valInp = document.createElement('input');
       valInp.className = 'var-val'; valInp.type = 'text';

@@ -3,7 +3,7 @@ let shapeCache = {};
 
 /* Simple per-layer shape (no graph traversal) — used as fallback */
 function getLayerShape(layer) {
-  if (layer.type === 'input')  return ['B', ...(layer.dims || [1])];
+  if (layer.type === 'input')  return ['BATCH', ...(layer.dims || [1])];
   if (layer.type === 'linear') return [layer.units || 128];
   return null;
 }
@@ -19,7 +19,7 @@ function computeOutputShapes() {
 
     /* INPUT: shape = [B, ...dims] — batch size B always prepended as dim 0 */
     if (layer.type === 'input') {
-      const batchSize = resolveVal('B');
+      const batchSize = resolveVal('BATCH');
       shapeCache[layerId] = [batchSize, ...(layer.dims ? layer.dims.map(resolveVal) : [1])];
       return shapeCache[layerId];
     }
