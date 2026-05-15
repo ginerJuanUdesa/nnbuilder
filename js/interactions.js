@@ -682,7 +682,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Delete' || e.key === 'Backspace') {
     if (selectedSuperboxId !== null && !propEditor.contains(document.activeElement)) {
       const idx = superboxes.findIndex(s => s.id === selectedSuperboxId);
-      if (idx !== -1) { superboxes.splice(idx, 1); selectedSuperboxId = null; saveState(); }
+      if (idx !== -1) { superboxes.splice(idx, 1); selectedSuperboxId = null; syncAll(); saveState(); }
       return;
     }
     if (selectedConnIdx >= 0) {
