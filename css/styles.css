@@ -156,6 +156,32 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   color: rgba(255,80,80,0.45); cursor: pointer; font-size: 12px; user-select: none;
 }
 #vars-panel .var-del:hover { color: #ff5050; }
+#vars-panel .var-formula {
+  width: 160px; background: rgba(0, 20, 40, 0.8);
+  border: 1px solid rgba(180, 100, 255, 0.4); border-radius: 3px;
+  color: #c87af0; font-family: 'Courier New', monospace;
+  font-size: 14px; padding: 6px 9px; outline: none; text-align: left;
+}
+#vars-panel .var-formula:focus { border-color: rgba(180, 100, 255, 0.8); }
+#vars-panel .var-computed {
+  color: rgba(255, 200, 0, 0.6); font-family: 'Courier New', monospace;
+  font-size: 12px; white-space: nowrap;
+}
+#vars-panel .var-fntoggle {
+  color: rgba(0, 136, 255, 0.6); cursor: pointer; font-size: 11px;
+  font-family: 'Courier New', monospace; user-select: none;
+  border: 1px solid rgba(0, 136, 255, 0.3); border-radius: 3px;
+  padding: 2px 5px;
+}
+#vars-panel .var-fntoggle:hover { color: #0088ff; border-color: rgba(0, 136, 255, 0.7); }
+body.white-mode #vars-panel .var-formula {
+  background: rgba(245, 240, 255, 0.9); color: #7a20c0;
+  border-color: rgba(120, 0, 200, 0.3);
+}
+body.white-mode #vars-panel .var-fntoggle {
+  color: rgba(0, 90, 190, 0.7); border-color: rgba(0, 90, 190, 0.3);
+}
+body.white-mode #vars-panel .var-computed { color: rgba(160, 100, 0, 0.7); }
 
 #ghost {
   position: fixed; pointer-events: none; z-index: 100;

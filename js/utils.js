@@ -25,12 +25,40 @@ function hexToRgb(hex) {
   return `${r}, ${g}, ${b}`;
 }
 
-/* Variable resolution — resolves a string name to its numeric value */
+/* Variable resolution — resolves a string name to its numeric value.
+   Supports formula mode: variable.formula = 'sqrt(B)' etc.           */
+
+const _MATH_CTX = {
+  sqrt: Math.sqrt, floor: Math.floor, ceil: Math.ceil, round: Math.round,
+  abs: Math.abs, log: Math.log, log2: Math.log2, log10: Math.log10,
+  exp: Math.exp, pow: Math.pow, min: Math.min, max: Math.max,
+  sign: Math.sign, trunc: Math.trunc, PI: Math.PI, E: Math.E,
+};
+
+function evalFormula(formula, depth) {
+  if (depth > 10) return 1; // cycle guard
+  const ctx = { ..._MATH_CTX };
+  variables.forEach(vr => { if (vr.name) ctx[vr.name] = resolveVar(vr, depth + 1); });
+  try {
+    const fn = new Function(...Object.keys(ctx), `"use strict"; return (${formula});`);
+    const result = fn(...Object.values(ctx));
+    if (typeof result !== 'number' || isNaN(result) || !isFinite(result)) return 1;
+    return Math.max(1, Math.round(result));
+  } catch { return 1; }
+}
+
+function resolveVar(vr, depth = 0) {
+  if (depth > 10) return 1;
+  if (vr.formula && vr.formula.trim()) return evalFormula(vr.formula.trim(), depth);
+  const n = parseInt(vr.value);
+  return isNaN(n) ? 1 : Math.max(1, n);
+}
+
 function resolveVal(v) {
   if (typeof v === 'number') return v;
   const str = String(v).trim();
   const found = variables.find(vr => vr.name === str);
-  if (found) { const n = parseInt(found.value); return isNaN(n) ? 1 : Math.max(1, n); }
+  if (found) return resolveVar(found, 0);
   const n = parseInt(str);
   return isNaN(n) ? 1 : Math.max(1, n);
 }
