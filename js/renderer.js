@@ -1311,7 +1311,9 @@ function draw() {
     const col        = isSelected ? (white ? 'rgba(0,0,0,0.9)' : 'rgba(255, 255, 255, 0.9)') : `rgba(${hexToRgb(white ? ft.lightColor || ft.color : ft.color)}, ${connAlpha})`;
     drawPath(path, col, isSelected ? '#ffffff' : ft.color, isSelected ? 3.5 : 2);
 
-    if (c.paramLabel && zoom > 0.3) {
+    const _eitherInSB = zoom <= SB_COLLAPSE_ZOOM && superboxes.some(sb =>
+      sb.layerIds.includes(c.from) || sb.layerIds.includes(c.to));
+    if (c.paramLabel && zoom > 0.3 && !_eitherInSB) {
       const midPt    = { x: path[1].x, y: (path[1].y + path[2].y) / 2 };
       const fontSize = Math.max(8, Math.min(11, 10 * zoom));
       nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'center';
