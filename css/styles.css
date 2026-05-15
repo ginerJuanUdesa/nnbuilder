@@ -76,6 +76,8 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
 .palette-item.type-add       .name { color: #aaff00; }
 .palette-item.type-softmax   { border-color: rgba(255, 51, 51, 0.4); }
 .palette-item.type-softmax   .name { color: #ff3333; }
+.palette-item.type-squeeze   { border-color: rgba(200, 122, 240, 0.4); }
+.palette-item.type-squeeze   .name { color: #c87af0; }
 .palette-item.type-unsqueeze { border-color: rgba(224, 96, 160, 0.4); }
 .palette-item.type-unsqueeze .name { color: #e060a0; }
 

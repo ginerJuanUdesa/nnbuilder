@@ -134,6 +134,29 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* SQUEEZE: torch.squeeze — removes size-1 dims.
+       dim=null → remove ALL size-1 dims; dim=N → remove dim N only if size==1 */
+    if (layer.type === 'squeeze') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[incoming.length - 1].from);
+      if (!srcShape) { shapeCache[layerId] = null; return null; }
+      const rawDim = layer.dim !== undefined && layer.dim !== null && layer.dim !== '' ? resolveVal(layer.dim) : null;
+      let out;
+      if (rawDim === null || rawDim === undefined) {
+        out = srcShape.filter(d => d !== 1);
+        if (out.length === 0) out = [1]; // squeeze of all-1s → scalar represented as [1]
+      } else {
+        const n = srcShape.length;
+        const d = rawDim < 0 ? n + rawDim : rawDim;
+        out = [...srcShape];
+        if (d >= 0 && d < n && srcShape[d] === 1) out.splice(d, 1);
+        if (out.length === 0) out = [1];
+      }
+      shapeCache[layerId] = out;
+      return shapeCache[layerId];
+    }
+
     /* SOFTMAX: nn.Softmax(dim) — shape passthrough */
     if (layer.type === 'softmax') {
       const incoming = connections.filter(c => c.to === layerId);

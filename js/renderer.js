@@ -254,6 +254,15 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
+      } else if (layer.type === 'squeeze') {
+        const outShape = shapeCache[layer.id];
+        const dispShape = outShape ? getDisplayShape(layer.id) : null;
+        const dimVal = layer.dim !== undefined && layer.dim !== null && layer.dim !== '' ? layer.dim : 'all';
+        const text = dispShape ? `dim=${dimVal} → [${dispShape.join(', ')}]` : `dim=${dimVal}`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
+
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
@@ -734,6 +743,53 @@ function drawUnsqueezeHologram(layer, cx, cy, white) {
   nodeCtx.setLineDash([]); nodeCtx.restore();
 }
 
+/* --- Squeeze hologram: 2D grid collapses a dim-1 row/col into flat strip --- */
+function drawSqueezeHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '128, 48, 192' : '200, 122, 240';
+  const boxH     = layerTypes.squeeze.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 3.3 + layer.id * 1.9) * 0.08 + Math.sin(time * 8.5 + layer.id * 0.6) * 0.04;
+  const cols = 6, rows = 2;
+  const cellSize = Math.max(5, Math.min(10, 8 * zoom));
+  const cellGap  = Math.max(1.5, 2 * zoom), cellStep = cellSize + cellGap;
+  const gridW    = cols * cellStep - cellGap;
+  const gridH    = rows * cellStep - cellGap;
+  const gap      = Math.max(8, 12 * zoom);
+  // show: top row is size-1 (being squeezed), bottom row is data
+  const topY  = cy - boxH / 2 - gap - gridH - cellStep;
+  const scanIdx = Math.floor(time * 5) % cols;
+
+  // top dim-1 row (gets squeezed, rendered dimmer with strikethrough-ish)
+  for (let c = 0; c < cols; c++) {
+    const px = cx - gridW / 2 + c * cellStep, py = topY;
+    const hot = c === scanIdx;
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${(hot ? 0.35 : 0.1) * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.6 : 0.22) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+  }
+  // dim label "1" centred on that row
+  const fontSize = Math.max(6, 7 * zoom);
+  nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'right'; nodeCtx.textBaseline = 'middle';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.45 * flicker})`;
+  nodeCtx.fillText('1', cx - gridW / 2 - 4, topY + cellSize / 2);
+  nodeCtx.textAlign = 'center';
+
+  // main data row below
+  const dataY = topY + cellStep;
+  for (let c = 0; c < cols; c++) {
+    const px = cx - gridW / 2 + c * cellStep, hot = c === scanIdx;
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${(hot ? 0.5 : 0.18) * flicker})`; nodeCtx.fillRect(px, dataY, cellSize, cellSize);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.9 : 0.45) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, dataY, cellSize, cellSize);
+  }
+
+  // arrow suggesting collapse
+  const arrowFromY = topY - 5;
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.3 * flicker})`; nodeCtx.lineWidth = 1;
+  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, dataY + cellSize + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
+  nodeCtx.setLineDash([]); nodeCtx.restore();
+}
+
 /* --- Softmax hologram: bar chart normalising to probability distribution --- */
 function drawSoftmaxHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
@@ -905,6 +961,7 @@ function draw() {
     if (l.type === 'mean' && isConnected && !isHologramBlocked(l)) drawMeanHologram(l, sx, sy, white);
     if (l.type === 'conv' && isConnected && !isHologramBlocked(l)) drawConvHologram(l, sx, sy, white);
     if (l.type === 'unsqueeze' && isConnected && !isHologramBlocked(l)) drawUnsqueezeHologram(l, sx, sy, white);
+        if (l.type === 'squeeze'   && isConnected && !isHologramBlocked(l)) drawSqueezeHologram(l, sx, sy, white);
     if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l)) drawSoftmaxHologram(l, sx, sy, white);
     if (l.type === 'add'       && isConnected && !isHologramBlocked(l)) drawAddHologram(l, sx, sy, white);
 

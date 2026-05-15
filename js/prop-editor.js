@@ -317,6 +317,21 @@ function openPropEditor(layer) {
       });
       setTimeout(() => dimInp.focus(), 50);
     }
+  } else if (layer.type === 'squeeze') {
+    peTitle.textContent = 'SQUEEZE';
+    const dimVal = layer.dim !== undefined && layer.dim !== null ? layer.dim : '';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label">DIM</span><input class="pe-input" type="number" value="${dimVal}" id="pe-dim" step="1" placeholder="all"></div>
+      <div class="pe-hint">Leave blank → squeeze all size-1 dims</div>`;
+    const dimInp = peBody.querySelector('#pe-dim');
+    if (dimInp) {
+      dimInp.addEventListener('change', () => {
+        const v = dimInp.value.trim();
+        layer.dim = v === '' ? null : (parseInt(v) || 0);
+        saveState();
+      });
+      setTimeout(() => dimInp.focus(), 50);
+    }
   }
 
   // name row — prepend so innerHTML assignments by type blocks don't wipe it

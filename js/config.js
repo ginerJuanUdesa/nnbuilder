@@ -11,6 +11,7 @@ const layerTypes = {
   mean:    { w: 140, h: 70, color: '#ff8c00', glow: '#ff8c00', bg: 'rgba(60, 30, 0, 0.97)',  lightColor: '#c05000' },
   conv:    { w: 140, h: 70, color: '#00ccdd', glow: '#00ccdd', bg: 'rgba(0, 50, 60, 0.97)',  lightColor: '#008296' },
   unsqueeze: { w: 140, h: 70, color: '#e060a0', glow: '#e060a0', bg: 'rgba(60, 0, 35, 0.97)',  lightColor: '#b02070' },
+  squeeze:   { w: 140, h: 70, color: '#c87af0', glow: '#c87af0', bg: 'rgba(50, 0, 70, 0.97)',  lightColor: '#8030c0' },
   softmax:   { w: 140, h: 70, color: '#ff3333', glow: '#ff3333', bg: 'rgba(60, 0, 0, 0.97)',   lightColor: '#cc1111' },
   add:       { w: 140, h: 70, color: '#aaff00', glow: '#aaff00', bg: 'rgba(30, 50, 0, 0.97)',  lightColor: '#5a8a00' },
 };

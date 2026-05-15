@@ -63,6 +63,22 @@ function getDisplayShape(layerId) {
     out.splice(Math.max(0, Math.min(actualDim, srcDisp.length)), 0, 1);
     return out;
   }
+  if (layer.type === 'squeeze') {
+    const inc = connections.filter(c => c.to === layerId);
+    const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
+    if (!srcDisp) return resolved;
+    const rawDim = layer.dim !== undefined && layer.dim !== null && layer.dim !== '' ? resolveVal(layer.dim) : null;
+    if (rawDim === null || rawDim === undefined) {
+      const out = srcDisp.filter(d => d !== 1 && d !== '1');
+      return out.length > 0 ? out : [1];
+    }
+    const n = srcDisp.length;
+    const d = rawDim < 0 ? n + rawDim : rawDim;
+    const out = [...srcDisp];
+    const resolvedVal = (d >= 0 && d < n) ? resolveVal(srcDisp[d]) : -1;
+    if (resolvedVal === 1) out.splice(d, 1);
+    return out.length > 0 ? out : [1];
+  }
   if (layer.type === 'softmax') {
     const inc = connections.filter(c => c.to === layerId);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
@@ -151,14 +167,15 @@ function isHologramBlocked(layer) {
 function canConnect(from, to) {
   if (from.id === to.id) return false;
   return (
-    (from.type === 'input'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'linear'  && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'mean'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'flatten' && ['linear', 'mean', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'conv'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'unsqueeze' && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'softmax'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type)) ||
-    (from.type === 'add'       && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'softmax', 'add'].includes(to.type))
+    (from.type === 'input'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'linear'  && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'mean'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'flatten' && ['linear', 'mean', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'conv'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'unsqueeze' && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'squeeze'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'softmax'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type)) ||
+    (from.type === 'add'       && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add'].includes(to.type))
   );
 }
 
