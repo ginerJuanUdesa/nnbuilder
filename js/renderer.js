@@ -98,7 +98,7 @@ function drawLayerBox(layer, cx, cy) {
       squeeze:   'rgba(238, 220, 255, 0.97)',
       softmax:   'rgba(255, 220, 220, 0.97)',
       add:       'rgba(230, 255, 210, 0.97)',
-      bmm:       'rgba(255, 235, 200, 0.97)',
+      matmul:    'rgba(255, 235, 200, 0.97)',
       scale:     'rgba(200, 245, 238, 0.97)',
       transpose:  'rgba(225, 215, 255, 0.97)',
       layernorm:  'rgba(210, 245, 230, 0.97)',
