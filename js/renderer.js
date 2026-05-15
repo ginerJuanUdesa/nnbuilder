@@ -1161,10 +1161,10 @@ function draw() {
       const paramColorDim = document.body.classList.contains('white-mode') ? 'rgba(180, 140, 0, 0.6)' : 'rgba(255, 200, 0, 0.6)';
       if (c.paramLabelTop) {
         nodeCtx.textBaseline = 'bottom'; nodeCtx.fillStyle = paramColor;
-        nodeCtx.fillText(c.paramLabelTop, midPt.x, midPt.y - 10);
+        nodeCtx.fillText(c.paramLabelTop, midPt.x, midPt.y - 2);
       }
       nodeCtx.textBaseline = 'top'; nodeCtx.fillStyle = paramColorDim;
-      nodeCtx.fillText(c.paramLabel, midPt.x, midPt.y + 14);
+      nodeCtx.fillText(c.paramLabel, midPt.x, midPt.y + 2);
     }
 
     if (isSelected) {
