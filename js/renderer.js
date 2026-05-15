@@ -343,6 +343,16 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
+      } else if (layer.type === 'layernorm') {
+        const rawNS = layer.normalized_shape;
+        const nsStr = (rawNS !== undefined && rawNS !== '') ? String(rawNS) : 'last dim';
+        const text  = `LN(${nsStr})`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.fillText(text, cx, baseY);
+
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
