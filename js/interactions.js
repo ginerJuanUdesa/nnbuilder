@@ -242,10 +242,15 @@ window.addEventListener('mouseup', e => {
   if (sbDragging) {
     const sb = superboxes.find(s => s.id === sbDragId);
     if (sb) {
-      // snap layers to grid
+      // snap superbox origin to grid, apply same delta to contained layers
+      const snappedX = snapToGrid(sb.x);
+      const snappedY = snapToGrid(sb.y);
+      const dx = snappedX - sb.x;
+      const dy = snappedY - sb.y;
+      sb.x = snappedX; sb.y = snappedY;
       sb.layerIds.forEach(lid => {
         const l = layers.find(x => x.id === lid);
-        if (l) { l.x = snapToGrid(l.x); l.y = snapToGrid(l.y); }
+        if (l) { l.x = snapToGrid(l.x + dx); l.y = snapToGrid(l.y + dy); }
       });
     }
     sbDragging = false; sbDragId = null;
