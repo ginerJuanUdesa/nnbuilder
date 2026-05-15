@@ -200,6 +200,7 @@ window.addEventListener('mousemove', e => {
         });
       };
       _collectDesc(sb.id);
+      console.log('[sbdrag] dragging', sb.id, 'descSbIds:', [..._descSbIds], 'superboxes parentIds:', superboxes.map(s=>({id:s.id,parentId:s.parentId})));
 
       // Move direct layers (skip any that live inside a child SB)
       sb.layerIds.forEach(lid => {
