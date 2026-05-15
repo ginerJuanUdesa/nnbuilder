@@ -308,7 +308,7 @@ function drawLayerBox(layer, cx, cy) {
     const outCount  = connections.filter(c => c.from === layer.id).length;
     const badgeSize = Math.max(8, 12 * zoom);
     const badgeY    = y - badgeSize / 2 - 4;
-    if (inCount > 0) {
+    if (inCount > 1) {
       nodeCtx.beginPath(); nodeCtx.arc(x - badgeSize - 2, badgeY + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
       nodeCtx.fillStyle = `rgba(${hexToRgb('#ff4444')}, ${0.8 * alpha})`; nodeCtx.fill();
       if (zoom > 0.4) {
@@ -317,7 +317,7 @@ function drawLayerBox(layer, cx, cy) {
         nodeCtx.fillText(inCount, x - badgeSize - 2, badgeY + badgeSize / 2);
       }
     }
-    if (outCount > 0 && layer.type !== 'output') {
+    if (outCount > 1 && layer.type !== 'output') {
       nodeCtx.beginPath(); nodeCtx.arc(x + w + badgeSize + 2, badgeY + badgeSize / 2, badgeSize / 2, 0, Math.PI * 2);
       nodeCtx.fillStyle = `rgba(${hexToRgb('#44ff44')}, ${0.8 * alpha})`; nodeCtx.fill();
       if (zoom > 0.4) {
