@@ -101,6 +101,22 @@ function getDisplayShape(layerId) {
     }
     return compatible ? out : resolved;
   }
+  if (layer.type === 'bmm') {
+    const inc = connections.filter(c => c.to === layerId);
+    if (inc.length < 2) return resolved;
+    const dispA = getDisplayShape(inc[0].from);
+    const dispB = getDisplayShape(inc[1].from);
+    if (!dispA || !dispB || dispA.length < 2 || dispB.length < 2) return resolved;
+    const n = dispA[dispA.length - 2];
+    const p = dispB[dispB.length - 1];
+    const batchA = dispA.slice(0, -2);
+    const batchB = dispB.slice(0, -2);
+    const maxBatch = Math.max(batchA.length, batchB.length);
+    const padA = [...Array(maxBatch - batchA.length).fill(1), ...batchA];
+    const padB = [...Array(maxBatch - batchB.length).fill(1), ...batchB];
+    const batchOut = padA.map((a, i) => (a === 1 || a === '1') ? padB[i] : a);
+    return [...batchOut, n, p];
+  }
   if (layer.type === 'output') {
     const inc = connections.filter(c => c.to === layerId);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
