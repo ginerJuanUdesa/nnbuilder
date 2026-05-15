@@ -1332,19 +1332,37 @@ function draw() {
   computeOutputShapes();
   drawOrigin();
   const white = document.body.classList.contains('white-mode');
-  const SB_COLLAPSE_ZOOM = 0.5;
+  const SB_COLLAPSE_ZOOM       = 0.5;   // leaf SBs (no child SBs)
+  const SB_SUPER_COLLAPSE_ZOOM = 0.25;  // supersuperboxes (have child SBs)
 
-  // draw connections — clip out collapsed superbox interiors so cross-boundary
-  // connections are hidden inside the box but visible outside
-  const _sbCollapsed = zoom <= SB_COLLAPSE_ZOOM && superboxes.length > 0;
+  // supersuperbox = root SB that contains child SBs → collapses later
+  const _sbHasChildren   = sb => superboxes.some(c => c.parentId === sb.id);
+  const _sbThreshold     = sb => _sbHasChildren(sb) ? SB_SUPER_COLLAPSE_ZOOM : SB_COLLAPSE_ZOOM;
+  const _sbCollapsingNow = sb => !sb.parentId && zoom <= _sbThreshold(sb);
+  // walk parentId chain to find root SB
+  const _rootSbOf = sb => {
+    let cur = sb;
+    while (cur && cur.parentId) cur = superboxes.find(s => s.id === cur.parentId) || null;
+    return cur;
+  };
+  // true if layer is inside a currently-collapsing root SB
+  const _layerIsCollapsed = lid => {
+    const ownerSb = superboxes.find(s => s.layerIds.includes(lid));
+    if (!ownerSb) return false;
+    const root = _rootSbOf(ownerSb);
+    return root ? _sbCollapsingNow(root) : false;
+  };
+
+  // clip only root SBs that are collapsing at current zoom
+  const _collapsingRoots = superboxes.filter(_sbCollapsingNow);
+  const _sbCollapsed = _collapsingRoots.length > 0;
   if (_sbCollapsed) {
     nodeCtx.save();
     nodeCtx.beginPath();
-    nodeCtx.rect(-1, -1, nodeCanvas.width + 2, nodeCanvas.height + 2); // outer boundary
-    for (const sb of superboxes) {
-      if (sb.parentId) continue; // only root boxes; children hidden by parent hole
+    nodeCtx.rect(-1, -1, nodeCanvas.width + 2, nodeCanvas.height + 2);
+    for (const sb of _collapsingRoots) {
       const [_sx, _sy] = worldToScreen(sb.x, sb.y);
-      nodeCtx.rect(_sx, _sy, sb.w * zoom, sb.h * zoom);   // punch holes
+      nodeCtx.rect(_sx, _sy, sb.w * zoom, sb.h * zoom);
     }
     nodeCtx.clip('evenodd');
   }
@@ -1360,8 +1378,7 @@ function draw() {
     const col        = isSelected ? (white ? 'rgba(0,0,0,0.9)' : 'rgba(255, 255, 255, 0.9)') : `rgba(${hexToRgb(white ? ft.lightColor || ft.color : ft.color)}, ${connAlpha})`;
     drawPath(path, col, isSelected ? '#ffffff' : ft.color, isSelected ? 3.5 : 2);
 
-    const _eitherInSB = zoom <= SB_COLLAPSE_ZOOM && superboxes.some(sb =>
-      sb.layerIds.includes(c.from) || sb.layerIds.includes(c.to));
+    const _eitherInSB = _layerIsCollapsed(c.from) || _layerIsCollapsed(c.to);
     if (c.paramLabel && zoom > 0.3 && !_eitherInSB) {
       const midPt    = { x: path[1].x, y: (path[1].y + path[2].y) / 2 };
       const fontSize = Math.max(8, Math.min(11, 10 * zoom));
@@ -1412,6 +1429,7 @@ function draw() {
   // draw superbox collapsed fills when zoomed out (before layers so they're under)
   if (zoom <= SB_COLLAPSE_ZOOM) {
     for (const sb of sbsSortedByDepth()) {
+      if (!_sbCollapsingNow(_rootSbOf(sb) || sb)) continue;
       const _colPal = white ? SUPERBOX_COLORS_LIGHT : SUPERBOX_COLORS;
       const color = _colPal[sb.colorIdx % _colPal.length];
       const [sx, sy] = worldToScreen(sb.x, sb.y);
@@ -1433,8 +1451,7 @@ function draw() {
     const [sx, sy]   = worldToScreen(l.x, l.y);
     const isConnected = connections.some(c => c.from === l.id || c.to === l.id);
     const inSuperbox  = superboxes.some(sb => sb.layerIds.includes(l.id));
-    // when zoomed out, hide layers inside superboxes (show collapsed superbox instead)
-    if (inSuperbox && zoom <= SB_COLLAPSE_ZOOM) continue;
+    if (_layerIsCollapsed(l.id)) continue;
 
     if (l.type === 'input'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawCSVHologram(l, sx, sy, white);
     if (l.type === 'linear'  && isConnected && !isHologramBlocked(l) && !inSuperbox) drawNeuronHologram(l, sx, sy, white);
