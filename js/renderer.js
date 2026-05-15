@@ -15,35 +15,29 @@ function buildGrid() {
   const eGY = Math.ceil(bry  / gridSpacing) + 1;
   const white = document.body.classList.contains('white-mode');
 
-  const minorColor = white ? 'rgba(0, 0, 0, 0.06)' : 'rgba(0, 255, 136, 0.06)';
-  const minorColor2 = white ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 136, 255, 0.15)';
-  const minorColor3 = white ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 136, 255, 0.3)';
+  // Uniform grid: all lines same color, dots at intersections only
+  const lineColor  = white ? 'rgba(0, 0, 0, 0.10)' : 'rgba(0, 255, 136, 0.10)';
+  const majorColor = white ? 'rgba(0, 0, 0, 0.18)' : 'rgba(0, 200, 255, 0.18)';
+  const dotColor   = white ? 'rgba(0, 0, 0, 0.22)' : 'rgba(0, 255, 136, 0.28)';
 
-  octx.strokeStyle = minorColor; octx.lineWidth = 0.5; octx.beginPath();
+  // minor lines (every gridSpacing)
+  octx.strokeStyle = lineColor; octx.lineWidth = 0.5; octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
   for (let gy = sGY; gy <= eGY; gy++) { const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
   octx.stroke();
 
-  octx.strokeStyle = minorColor2; octx.lineWidth = 1; octx.beginPath();
+  // major lines (every majorEvery cells) — slightly brighter, same weight
+  octx.strokeStyle = majorColor; octx.lineWidth = 0.5; octx.beginPath();
   for (let gx = sGX; gx <= eGX; gx++) { if (gx % majorEvery !== 0) continue; const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
   for (let gy = sGY; gy <= eGY; gy++) { if (gy % majorEvery !== 0) continue; const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
   octx.stroke();
 
-  const superEvery = majorEvery * 5;
-  octx.strokeStyle = minorColor3; octx.lineWidth = 1.5; octx.beginPath();
-  for (let gx = sGX; gx <= eGX; gx++) { if (gx % superEvery !== 0) continue; const [sx] = worldToScreen(gx * gridSpacing, 0); octx.moveTo(sx, 0); octx.lineTo(sx, H); }
-  for (let gy = sGY; gy <= eGY; gy++) { if (gy % superEvery !== 0) continue; const [, sy] = worldToScreen(0, gy * gridSpacing); octx.moveTo(0, sy); octx.lineTo(W, sy); }
-  octx.stroke();
-
-  const dotSize = Math.max(1, 2 * zoom);
+  // dots at every grid intersection
+  const dotSize = Math.max(1, 1.5 * zoom);
   for (let gx = sGX; gx <= eGX; gx++) {
-    if (gx % majorEvery !== 0) continue;
     for (let gy = sGY; gy <= eGY; gy++) {
-      if (gy % majorEvery !== 0) continue;
       const [sx, sy] = worldToScreen(gx * gridSpacing, gy * gridSpacing);
-      const h = hash(gx, gy);
-      const alpha = (white ? 0.06 : 0.15) + (((h >> 24) & 0xFF) / 255) * (white ? 0.15 : 0.35);
-      octx.fillStyle = white ? `rgba(0, 0, 0, ${alpha})` : `rgba(0, 255, 136, ${alpha})`;
+      octx.fillStyle = dotColor;
       octx.fillRect(sx - dotSize / 2, sy - dotSize / 2, dotSize, dotSize);
     }
   }
@@ -1076,10 +1070,11 @@ function draw() {
   for (const l of layers) {
     const [sx, sy]   = worldToScreen(l.x, l.y);
     const isConnected = connections.some(c => c.from === l.id || c.to === l.id);
+    const inSuperbox  = superboxes.some(sb => sb.layerIds.includes(l.id));
 
-    if (l.type === 'input'   && isConnected && !isHologramBlocked(l)) drawCSVHologram(l, sx, sy, white);
-    if (l.type === 'linear'  && isConnected && !isHologramBlocked(l)) drawNeuronHologram(l, sx, sy, white);
-    if (l.type === 'linear'  && l.activation && l.activation !== 'none') {
+    if (l.type === 'input'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawCSVHologram(l, sx, sy, white);
+    if (l.type === 'linear'  && isConnected && !isHologramBlocked(l) && !inSuperbox) drawNeuronHologram(l, sx, sy, white);
+    if (l.type === 'linear'  && l.activation && l.activation !== 'none' && !inSuperbox) {
       const lt          = layerTypes.linear;
       const layerBottom = l.y + lt.h / 2;
       const curveBlocked = layers.some(other => {
@@ -1091,14 +1086,14 @@ function draw() {
       });
       if (!curveBlocked) drawActivationCurve(l, sx, sy, white);
     }
-    if (l.type === 'flatten' && isConnected && !isHologramBlocked(l)) drawFlattenHologram(l, sx, sy, white);
-    if (l.type === 'mean' && isConnected && !isHologramBlocked(l)) drawMeanHologram(l, sx, sy, white);
-    if (l.type === 'conv' && isConnected && !isHologramBlocked(l)) drawConvHologram(l, sx, sy, white);
-    if (l.type === 'unsqueeze' && isConnected && !isHologramBlocked(l)) drawUnsqueezeHologram(l, sx, sy, white);
-        if (l.type === 'squeeze'   && isConnected && !isHologramBlocked(l)) drawSqueezeHologram(l, sx, sy, white);
-    if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l)) drawSoftmaxHologram(l, sx, sy, white);
-    if (l.type === 'add'       && isConnected && !isHologramBlocked(l)) drawAddHologram(l, sx, sy, white);
-        if (l.type === 'bmm'       && isConnected && !isHologramBlocked(l)) drawBmmHologram(l, sx, sy, white);
+    if (l.type === 'flatten'  && isConnected && !isHologramBlocked(l) && !inSuperbox) drawFlattenHologram(l, sx, sy, white);
+    if (l.type === 'mean'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawMeanHologram(l, sx, sy, white);
+    if (l.type === 'conv'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawConvHologram(l, sx, sy, white);
+    if (l.type === 'unsqueeze' && isConnected && !isHologramBlocked(l) && !inSuperbox) drawUnsqueezeHologram(l, sx, sy, white);
+    if (l.type === 'squeeze'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawSqueezeHologram(l, sx, sy, white);
+    if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawSoftmaxHologram(l, sx, sy, white);
+    if (l.type === 'add'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawAddHologram(l, sx, sy, white);
+    if (l.type === 'bmm'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawBmmHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 

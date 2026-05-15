@@ -168,7 +168,7 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   border: 1px solid rgba(var(--pe-rgb, 0, 255, 136), 0.5);
   border-radius: 6px;
   padding: 12px 14px;
-  min-width: 180px;
+  min-width: 260px;
   overflow: visible;
   box-shadow: 0 0 20px rgba(var(--pe-rgb, 0, 255, 136), 0.15);
 }
@@ -186,7 +186,7 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   font-size: 11px; color: rgba(0, 200, 255, 0.7);
 }
 #prop-editor .pe-input {
-  width: 70px; background: rgba(0, 20, 40, 0.8);
+  width: 120px; background: rgba(0, 20, 40, 0.8);
   border: 1px solid rgba(var(--pe-rgb, 0, 136, 255), 0.3);
   border-radius: 3px; color: var(--pe-color, #00ff88);
   font-family: 'Courier New', monospace;
