@@ -49,9 +49,14 @@ function evalFormula(formula, depth) {
 
 function resolveVar(vr, depth = 0) {
   if (depth > 10) return 1;
+  // legacy formula field — backward compat with old saves
   if (vr.formula && vr.formula.trim()) return evalFormula(vr.formula.trim(), depth);
-  const n = parseInt(vr.value);
-  return isNaN(n) ? 1 : Math.max(1, n);
+  const str = (vr.value || '').trim();
+  // pure integer → parse directly
+  if (/^-?\d+$/.test(str)) { const n = parseInt(str); return isNaN(n) ? 1 : Math.max(1, n); }
+  // anything else → auto-treat as formula (variable refs, math expressions)
+  if (str) return evalFormula(str, depth);
+  return 1;
 }
 
 function resolveVal(v) {
