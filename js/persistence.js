@@ -18,6 +18,7 @@ function _applySnap(raw) {
   superboxes.length  = 0; (data.superboxes  || []).forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
   nextId     = data.nextId || 1;
   ensureBatchVar();
+  if (typeof syncAll === 'function') syncAll();
   nodesDirty = true;
   gridDirty  = true;
 }
@@ -85,7 +86,7 @@ function loadState() {
       camY   = data.camY  || 0;
       zoom   = data.zoom  || 1;
     }
-    ensureBatchVar();
+    ensureBatchVar(); if (typeof syncAll === 'function') syncAll();
   } catch (e) { ensureBatchVar(); }
   _prevSnap = _snap(); // baseline so first action pushes correctly
 }
@@ -144,7 +145,7 @@ function importFromFile() {
         superboxes.length  = 0; (data.superboxes  || []).forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
         nextId = data.nextId || 1;
         if (data.camera) { camX = data.camera.x || 0; camY = data.camera.y || 0; zoom = data.camera.zoom || 1; }
-        ensureBatchVar();
+        ensureBatchVar(); if (typeof syncAll === 'function') syncAll();
         _prevSnap  = _snap();
         nodesDirty = true;
         gridDirty  = true;

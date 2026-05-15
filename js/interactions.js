@@ -200,7 +200,6 @@ window.addEventListener('mousemove', e => {
         });
       };
       _collectDesc(sb.id);
-      console.log('[sbdrag] dragging', sb.id, 'descSbIds:', [..._descSbIds], 'superboxes parentIds:', superboxes.map(s=>({id:s.id,parentId:s.parentId})));
 
       // Move direct layers (skip any that live inside a child SB)
       sb.layerIds.forEach(lid => {
@@ -329,22 +328,16 @@ window.addEventListener('mouseup', e => {
       const enclosed = layers.filter(l => {
         return l.x >= x1 && l.x <= x2 && l.y >= y1 && l.y <= y2;
       });
-      const _ncx = (x1 + x2) / 2, _ncy = (y1 + y2) / 2;
-      let _nParent = null;
-      for (const other of sbsSortedByDepth().reverse()) {
-        if (_ncx >= other.x && _ncx <= other.x + other.w && _ncy >= other.y && _ncy <= other.y + other.h) {
-          _nParent = other.id; break;
-        }
-      }
       const newSb = {
         id: nextId++,
         name: '',
         x: x1, y: y1, w: x2 - x1, h: y2 - y1,
         layerIds: enclosed.map(l => l.id),
         colorIdx: superboxes.length % SUPERBOX_COLORS.length,
-        parentId: _nParent
+        parentId: null  // will be set by syncAll below
       };
       superboxes.push(newSb);
+      syncAll(); // recomputes parentId for all SBs + deepest-only layerIds
       selectedSuperboxId = newSb.id;
       selectedLayerId = null;
       saveState();
@@ -366,17 +359,7 @@ window.addEventListener('mouseup', e => {
       sb.w = Math.max(gridSpacing, snapToGrid(sb.w));
       sb.h = Math.max(gridSpacing, snapToGrid(sb.h));
     }
-    // reassign parent
-    const _rcx = sb.x + sb.w / 2, _rcy = sb.y + sb.h / 2;
-    let _rParent = null;
-    for (const other of sbsSortedByDepth().reverse()) {
-      if (other.id === sb.id) continue;
-      if (isSbDescendant(other, sb.id)) continue;
-      if (_rcx >= other.x && _rcx <= other.x + other.w && _rcy >= other.y && _rcy <= other.y + other.h) {
-        _rParent = other.id; break;
-      }
-    }
-    if (sb) sb.parentId = _rParent;
+    syncAll(); // recompute parentId for all SBs after resize + fix layerIds
     sbResizing = false; sbResizeId = null; sbResizeEdge = null;
     saveState(); nodesDirty = true;
     document.body.style.cursor = 'crosshair';
@@ -427,18 +410,9 @@ window.addEventListener('mouseup', e => {
           c.elbowX = snapToGrid(c.elbowX + dx);
         }
       });
+
+      syncAll(); // recompute all parentId + deepest-only layerIds after drop
     }
-    // assign or remove parent based on where center landed
-    const _cx = sb.x + sb.w / 2, _cy = sb.y + sb.h / 2;
-    let _newParent = null;
-    for (const other of sbsSortedByDepth().reverse()) {
-      if (other.id === sb.id) continue;
-      if (isSbDescendant(other, sb.id)) continue; // cycle guard
-      if (_cx >= other.x && _cx <= other.x + other.w && _cy >= other.y && _cy <= other.y + other.h) {
-        _newParent = other.id; break;
-      }
-    }
-    sb.parentId = _newParent;
     sbDragging = false; sbDragId = null;
     document.body.style.cursor = drawMode ? 'crosshair' : 'default';
     saveState(); nodesDirty = true; return;
@@ -468,18 +442,9 @@ window.addEventListener('mouseup', e => {
       if (overlapsAny(snappedX, snappedY, layer.id)) { layer.x = layerDragOrigX; layer.y = layerDragOrigY; }
       else { layer.x = snappedX; layer.y = snappedY; }
 
-      // Sync superbox membership based on final position
-      const t   = layerTypes[layer.type] || { w: 140, h: 70 };
-      const cx  = layer.x + t.w / 2;
-      const cy  = layer.y + t.h / 2;
-      let membershipChanged = false;
-      for (const sb of superboxes) {
-        const inside = cx >= sb.x && cx <= sb.x + sb.w && cy >= sb.y && cy <= sb.y + sb.h;
-        const idx    = sb.layerIds.indexOf(layer.id);
-        if (inside && idx === -1)  { sb.layerIds.push(layer.id); membershipChanged = true; }
-        if (!inside && idx !== -1) { sb.layerIds.splice(idx, 1); membershipChanged = true; }
-      }
-      if (membershipChanged) saveState();
+      // Sync superbox membership: layer goes into deepest containing SB only
+      syncLayerMembership([layer]);
+      saveState();
     }
     layerDragging = false; layerDragId = null; document.body.style.cursor = 'crosshair'; gridDirty = true;
     return;
@@ -524,6 +489,55 @@ window.addEventListener('contextmenu', e => {
   camY = (e.clientY - H / 2) / zoom + camY;
   gridDirty = true;
 });
+
+/* --- Membership sync helper: place each layer in deepest containing SB only --- */
+function syncLayerMembership(layerList) {
+  const sortedSbs = sbsSortedByDepth().reverse(); // deepest first
+  for (const l of layerList) {
+    const lt = layerTypes[l.type] || { w: 140, h: 70 };
+    const lcx = l.x + lt.w / 2, lcy = l.y + lt.h / 2;
+    let deepestSb = null;
+    for (const sb of sortedSbs) {
+      if (lcx >= sb.x && lcx <= sb.x + sb.w && lcy >= sb.y && lcy <= sb.y + sb.h) {
+        deepestSb = sb; break;
+      }
+    }
+    for (const sb of superboxes) {
+      const idx = sb.layerIds.indexOf(l.id);
+      const shouldBeIn = deepestSb !== null && sb.id === deepestSb.id;
+      if (shouldBeIn  && idx === -1) sb.layerIds.push(l.id);
+      if (!shouldBeIn && idx !== -1) sb.layerIds.splice(idx, 1);
+    }
+  }
+}
+
+
+/* --- SB hierarchy sync: recompute all parentId from containment geometry --- */
+function syncSbParentIds() {
+  // For each SB find the tightest (smallest area) OTHER SB that fully contains
+  // its center point AND is strictly larger (area > own area) to prevent cycles.
+  for (const sb of superboxes) {
+    const cx = sb.x + sb.w / 2, cy = sb.y + sb.h / 2;
+    let bestParent = null, bestArea = Infinity;
+    for (const other of superboxes) {
+      if (other.id === sb.id) continue;
+      const area = other.w * other.h;
+      if (area <= sb.w * sb.h) continue;        // parent must be strictly larger
+      if (area >= bestArea) continue;            // want the tightest fit
+      if (cx >= other.x && cx <= other.x + other.w &&
+          cy >= other.y && cy <= other.y + other.h) {
+        bestParent = other.id; bestArea = area;
+      }
+    }
+    sb.parentId = bestParent;
+  }
+}
+
+/* --- Combined sync: hierarchy then layer ownership ----------------------- */
+function syncAll() {
+  syncSbParentIds();
+  syncLayerMembership(layers);
+}
 
 /* --- Superbox copy / paste helpers --- */
 function copySuperbox(rootSb) {
