@@ -408,6 +408,11 @@ function openSuperboxEditor(sb) {
   infoRow.textContent = `${sb.layerIds.length} layer${sb.layerIds.length !== 1 ? 's' : ''} · Ctrl+C/V to copy`;
   peBody.appendChild(infoRow);
 
+  // center on screen
   propEditor.style.display = 'block';
+  const edW = propEditor.offsetWidth  || 220;
+  const edH = propEditor.offsetHeight || 100;
+  propEditor.style.left = Math.max(10, (W - edW) / 2) + 'px';
+  propEditor.style.top  = Math.max(10, (H - edH) / 2) + 'px';
   setTimeout(() => nameInp.focus(), 50);
 }

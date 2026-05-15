@@ -33,6 +33,7 @@ window.addEventListener('mousedown', e => {
         if (fromLayer && canConnect(fromLayer, hit)) {
           connections.push({ from: connectStartId, to: hit.id });
           saveState();
+          connectionMode = false;
         }
         connectStartId = null;
       }
@@ -230,6 +231,8 @@ window.addEventListener('mouseup', e => {
       // immediately open name editor
       openSuperboxEditor(newSb);
     }
+    drawMode = false;
+    document.body.style.cursor = 'default';
     _sbDrawStart = null; _sbDrawCurrent = null;
     nodesDirty = true;
     return;
