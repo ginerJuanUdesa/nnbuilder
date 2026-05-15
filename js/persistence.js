@@ -98,6 +98,7 @@ function exportToFile() {
     connections,
     nextId,
     variables,
+    superboxes,
     camera: { x: camX, y: camY, zoom }
   };
   const raw = prompt('Save as:', 'network');
@@ -134,6 +135,7 @@ function importFromFile() {
         layers.length      = 0; (data.layers      || []).forEach(l => layers.push(l));
         connections.length = 0; (data.connections || []).forEach(c => connections.push(c));
         variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
+        superboxes.length  = 0; (data.superboxes  || []).forEach(s => superboxes.push(s));
         nextId = data.nextId || 1;
         if (data.camera) { camX = data.camera.x || 0; camY = data.camera.y || 0; zoom = data.camera.zoom || 1; }
         _prevSnap  = _snap();
