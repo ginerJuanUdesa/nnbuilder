@@ -11,13 +11,31 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   z-index: 10;
   user-select: none;
 }
-#palette h3 {
-  color: #00ff88; font-size: 12px; text-transform: uppercase;
-  padding: 6px 16px 12px; letter-spacing: 2px;
-  text-shadow: 0 0 6px #00ff88;
+#palette-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px 10px 16px;
   border-bottom: 1px solid rgba(0, 255, 136, 0.1);
   margin-bottom: 8px;
 }
+#palette h3 {
+  color: #00ff88; font-size: 12px; text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 6px #00ff88;
+  padding: 0; margin: 0; border: none;
+}
+#palette-file-actions {
+  display: flex; gap: 6px; align-items: center;
+}
+#palette-file-actions button {
+  background: none; border: 1px solid rgba(0,255,136,0.25); border-radius: 4px;
+  cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center;
+  color: #00ff88; opacity: 0.55; transition: opacity 0.15s, border-color 0.15s;
+}
+#palette-file-actions button:hover {
+  opacity: 1; border-color: rgba(0,255,136,0.7);
+  box-shadow: 0 0 8px rgba(0,255,136,0.2);
+}
+#palette-file-actions button svg { width: 16px; height: 16px; display: block; }
 .palette-item {
   margin: 5px 10px; padding: 12px 14px;
   border: 1px solid rgba(0, 255, 136, 0.3);
@@ -255,7 +273,10 @@ body.white-mode #palette {
   border-right: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.07);
 }
-body.white-mode #palette h3 { color: #0a7a3e; text-shadow: none; border-bottom-color: rgba(0,0,0,0.07); }
+body.white-mode #palette h3 { color: #0a7a3e; text-shadow: none; }
+body.white-mode #palette-header { border-bottom-color: rgba(0,0,0,0.07); }
+body.white-mode #palette-file-actions button { color: #0a7a3e; border-color: rgba(10,122,62,0.25); }
+body.white-mode #palette-file-actions button:hover { border-color: rgba(10,122,62,0.7); box-shadow: 0 0 8px rgba(10,122,62,0.15); }
 
 body.white-mode .palette-item {
   border-color: rgba(0, 0, 0, 0.14);
