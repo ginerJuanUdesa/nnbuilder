@@ -1089,6 +1089,23 @@ function drawSuperboxes(white) {
     nodeCtx.setLineDash([]);
     nodeCtx.restore();
   }
+
+  // live erase rect while in erase mode
+  if (eraseMode && _eraseStart && _eraseCurrent) {
+    const [ax, ay] = worldToScreen(_eraseStart.wx, _eraseStart.wy);
+    const [bx, by] = worldToScreen(_eraseCurrent.wx, _eraseCurrent.wy);
+    nodeCtx.save();
+    nodeCtx.globalAlpha = 0.12;
+    nodeCtx.fillStyle = '#ff3333';
+    nodeCtx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    nodeCtx.globalAlpha = 0.85;
+    nodeCtx.strokeStyle = '#ff3333';
+    nodeCtx.lineWidth = 1.5;
+    nodeCtx.setLineDash([5, 4]);
+    nodeCtx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
+    nodeCtx.setLineDash([]);
+    nodeCtx.restore();
+  }
 }
 
 /* --- BMM hologram: two tall matrices with @ symbol → result --- */

@@ -44,6 +44,14 @@ window.addEventListener('mousedown', e => {
     return;
   }
 
+  // ── erase mode: start selection rect ──
+  if (eraseMode) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    _eraseStart = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+    _eraseCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+    return;
+  }
+
   // ── draw mode: start superbox rect ──
   if (drawMode) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
@@ -149,6 +157,12 @@ window.addEventListener('mousemove', e => {
   if (paletteDragType) { drawGhost(e.clientX, e.clientY); gridDirty = true; return; }
 
   // draw mode live preview
+  if (eraseMode && _eraseStart) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    _eraseCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+    nodesDirty = true; return;
+  }
+
   if (drawMode && _sbDrawStart) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
     _sbDrawCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
@@ -310,6 +324,31 @@ window.addEventListener('mouseup', e => {
     paletteDragType = null; hideGhost();
     if (ghostEl._paletteSource) ghostEl._paletteSource.classList.remove('dragging');
     ghostEl._paletteSource = null; document.body.style.cursor = 'crosshair'; gridDirty = true;
+    return;
+  }
+
+  // finalize erase selection
+  if (eraseMode && _eraseStart && _eraseCurrent) {
+    const x1 = snapToGrid(Math.min(_eraseStart.wx, _eraseCurrent.wx));
+    const y1 = snapToGrid(Math.min(_eraseStart.wy, _eraseCurrent.wy));
+    const x2 = snapToGrid(Math.max(_eraseStart.wx, _eraseCurrent.wx));
+    const y2 = snapToGrid(Math.max(_eraseStart.wy, _eraseCurrent.wy));
+    if (x2 - x1 >= 1 && y2 - y1 >= 1) {
+      // delete all layers whose center falls inside the rect
+      const toDelete = new Set(layers.filter(l => {
+        const t = layerTypes[l.type] || { w: 140, h: 70 };
+        const cx = l.x + t.w / 2, cy = l.y + t.h / 2;
+        return cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2;
+      }).map(l => l.id));
+      if (toDelete.size > 0) {
+        layers.splice(0, layers.length, ...layers.filter(l => !toDelete.has(l.id)));
+        connections.splice(0, connections.length, ...connections.filter(c => !toDelete.has(c.from) && !toDelete.has(c.to)));
+        superboxes.forEach(sb => { sb.layerIds = sb.layerIds.filter(id => !toDelete.has(id)); });
+        saveState();
+      }
+    }
+    _eraseStart = null; _eraseCurrent = null;
+    nodesDirty = true;
     return;
   }
 
@@ -660,6 +699,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closePropEditor();
     if (connectionMode) { connectionMode = false; connectStartId = null; }
+    if (eraseMode) { eraseMode = false; _eraseStart = null; _eraseCurrent = null; document.body.style.cursor = 'default'; }
     selectedConnIdx = -1;
     return;
   }
@@ -673,10 +713,20 @@ window.addEventListener('keydown', e => {
       && document.activeElement.tagName !== 'INPUT'
       && document.activeElement.tagName !== 'TEXTAREA') {
     drawMode = !drawMode;
-    if (drawMode) { connectionMode = false; connectStartId = null; }
+    if (drawMode) { connectionMode = false; connectStartId = null; eraseMode = false; }
     _sbDrawStart = null; _sbDrawCurrent = null;
     document.body.style.cursor = drawMode ? 'crosshair' : 'default';
     nodesDirty = true; syncStripButtons();
+    return;
+  }
+  if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey
+      && document.activeElement.tagName !== 'INPUT'
+      && document.activeElement.tagName !== 'TEXTAREA') {
+    eraseMode = !eraseMode;
+    if (eraseMode) { connectionMode = false; connectStartId = null; drawMode = false; _sbDrawStart = null; }
+    _eraseStart = null; _eraseCurrent = null;
+    document.body.style.cursor = eraseMode ? 'crosshair' : 'default';
+    nodesDirty = true;
     return;
   }
   if (e.key === 'Delete' || e.key === 'Backspace') {
