@@ -912,7 +912,7 @@ function drawSuperboxes(white) {
 
     // name label (top-left)
     if (sb.name && zoom > 0.3) {
-      const fontSize = Math.max(10, 13 * zoom);
+      const fontSize = Math.max(20, 39 * zoom);
       nodeCtx.save();
       nodeCtx.globalAlpha = isSelected ? 0.95 : 0.65;
       nodeCtx.font = `bold ${fontSize}px Courier New`;
