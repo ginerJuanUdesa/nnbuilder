@@ -46,8 +46,8 @@ window.addEventListener('mousedown', e => {
   // ── draw mode: start superbox rect ──
   if (drawMode) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
-    _sbDrawStart = { wx, wy };
-    _sbDrawCurrent = { wx, wy };
+    _sbDrawStart = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+    _sbDrawCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
     return;
   }
 
@@ -110,7 +110,7 @@ window.addEventListener('mousemove', e => {
   // draw mode live preview
   if (drawMode && _sbDrawStart) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
-    _sbDrawCurrent = { wx, wy };
+    _sbDrawCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
     nodesDirty = true; return;
   }
 
@@ -203,13 +203,17 @@ window.addEventListener('mouseup', e => {
 
   // finalize superbox draw
   if (drawMode && _sbDrawStart && _sbDrawCurrent) {
-    const x1 = Math.min(_sbDrawStart.wx, _sbDrawCurrent.wx);
-    const y1 = Math.min(_sbDrawStart.wy, _sbDrawCurrent.wy);
-    const x2 = Math.max(_sbDrawStart.wx, _sbDrawCurrent.wx);
-    const y2 = Math.max(_sbDrawStart.wy, _sbDrawCurrent.wy);
-    if (x2 - x1 > 20 && y2 - y1 > 20) {
+    const sx1 = snapToGrid(Math.min(_sbDrawStart.wx, _sbDrawCurrent.wx));
+    const sy1 = snapToGrid(Math.min(_sbDrawStart.wy, _sbDrawCurrent.wy));
+    const sx2 = snapToGrid(Math.max(_sbDrawStart.wx, _sbDrawCurrent.wx));
+    const sy2 = snapToGrid(Math.max(_sbDrawStart.wy, _sbDrawCurrent.wy));
+    // enforce minimum 2×gridSpacing in each dimension
+    const x1 = sx1, y1 = sy1;
+    const x2 = Math.max(sx2, sx1 + gridSpacing * 2);
+    const y2 = Math.max(sy2, sy1 + gridSpacing * 2);
+    // width/height already multiples of gridSpacing (both endpoints snapped)
+    if (x2 - x1 >= gridSpacing * 2 && y2 - y1 >= gridSpacing * 2) {
       const enclosed = layers.filter(l => {
-        const t = layerTypes[l.type];
         return l.x >= x1 && l.x <= x2 && l.y >= y1 && l.y <= y2;
       });
       const newSb = {
