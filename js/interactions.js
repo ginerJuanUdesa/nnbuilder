@@ -448,6 +448,86 @@ window.addEventListener('contextmenu', e => {
   gridDirty = true;
 });
 
+/* --- Superbox copy / paste helpers --- */
+function copySuperbox(rootSb) {
+  // Collect all descendant superboxes (BFS on parentId)
+  const sbIds = new Set([rootSb.id]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const sb of superboxes) {
+      if (!sbIds.has(sb.id) && sbIds.has(sb.parentId)) { sbIds.add(sb.id); changed = true; }
+    }
+  }
+  const sbList = superboxes.filter(s => sbIds.has(s.id));
+
+  // Collect all layer IDs inside any of those superboxes
+  const layerIdSet = new Set();
+  for (const sb of sbList) sb.layerIds.forEach(id => layerIdSet.add(id));
+  const layerList = layers.filter(l => layerIdSet.has(l.id));
+
+  // Internal connections only (both endpoints inside)
+  const connList = connections.filter(c => layerIdSet.has(c.from) && layerIdSet.has(c.to));
+
+  copiedSuperbox = {
+    rootId: rootSb.id,
+    sbs: JSON.parse(JSON.stringify(sbList)),
+    layers: JSON.parse(JSON.stringify(layerList)),
+    conns: JSON.parse(JSON.stringify(connList)),
+  };
+  clipboard = null; // clear single-layer clipboard
+}
+
+function pasteSuperbox() {
+  if (!copiedSuperbox) return;
+  const offset = gridSpacing * 2;
+  const { rootId, sbs, layers: pLayers, conns: pConns } = copiedSuperbox;
+
+  // Build old→new ID maps
+  const sbIdMap = {};
+  for (const sb of sbs) sbIdMap[sb.id] = nextId++;
+  const layerIdMap = {};
+  for (const l of pLayers) layerIdMap[l.id] = nextId++;
+
+  // Find root SB to compute position delta
+  const rootSb = sbs.find(s => s.id === rootId);
+  const dx = snapToGrid(rootSb.x + offset) - rootSb.x;
+  const dy = snapToGrid(rootSb.y + offset) - rootSb.y;
+
+  // Paste superboxes
+  const pastedRootSbId = sbIdMap[rootId];
+  for (const sb of sbs) {
+    const newSb = { ...JSON.parse(JSON.stringify(sb)),
+      id: sbIdMap[sb.id],
+      x: sb.x + dx, y: sb.y + dy,
+      layerIds: sb.layerIds.map(id => layerIdMap[id]).filter(id => id !== undefined),
+      parentId: sb.id === rootId ? null : (sb.parentId != null ? sbIdMap[sb.parentId] ?? null : null),
+    };
+    superboxes.push(newSb);
+  }
+
+  // Paste layers
+  for (const l of pLayers) {
+    const newL = { ...JSON.parse(JSON.stringify(l)),
+      id: layerIdMap[l.id],
+      x: l.x + dx, y: l.y + dy,
+    };
+    layers.push(newL);
+  }
+
+  // Paste internal connections
+  for (const c of pConns) {
+    connections.push({ ...JSON.parse(JSON.stringify(c)),
+      from: layerIdMap[c.from],
+      to:   layerIdMap[c.to],
+    });
+  }
+
+  selectedSuperboxId = pastedRootSbId;
+  selectedLayerId = null;
+  saveState();
+}
+
 /* --- Keyboard: copy / paste --- */
 window.addEventListener('keydown', e => {
   // ── undo / redo ──
