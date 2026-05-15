@@ -166,7 +166,8 @@ function drawLayerBox(layer, cx, cy) {
       const baseY = cy + 10 * zoom;
 
       if (layer.type === 'input') {
-        const text = (layer.dims || []).join('x') || '?';
+        const dispDims = getDisplayShape(layer.id);
+        const text = dispDims && dispDims.length > 0 ? `[${dispDims.join(', ')}]` : '?';
         nodeCtx.measureText(text).width > boxHalfW * 2
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
