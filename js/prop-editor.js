@@ -334,8 +334,8 @@ function openPropEditor(layer) {
     peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
     setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
 
-  } else if (layer.type === 'bmm') {
-    peTitle.textContent = 'BATCH MATMUL';
+  } else if (layer.type === 'matmul') {
+    peTitle.textContent = 'MATMUL';
     const inc = connections.filter(c => c.to === layer.id);
     const shA = inc.length > 0 ? shapeCache[inc[0].from] : null;
     const shB = inc.length > 1 ? shapeCache[inc[1].from] : null;

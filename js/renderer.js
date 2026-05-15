@@ -241,7 +241,7 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
-      } else if (layer.type === 'bmm') {
+      } else if (layer.type === 'matmul') {
         const inc = connections.filter(cc => cc.to === layer.id);
         const dispShape = getDisplayShape(layer.id);
         const shA = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
@@ -1008,7 +1008,7 @@ function drawScaleHologram(layer, cx, cy, white) {
   nodeCtx.restore();
 }
 
-function drawBmmHologram(layer, cx, cy, white) {
+function drawMatmulHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
 
@@ -1169,7 +1169,7 @@ function draw() {
     if (l.type === 'squeeze'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawSqueezeHologram(l, sx, sy, white);
     if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawSoftmaxHologram(l, sx, sy, white);
     if (l.type === 'add'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawAddHologram(l, sx, sy, white);
-    if (l.type === 'bmm'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawBmmHologram(l, sx, sy, white);
+    if (l.type === 'matmul'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawMatmulHologram(l, sx, sy, white);
     if (l.type === 'scale'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawScaleHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);

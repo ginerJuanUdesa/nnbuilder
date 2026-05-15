@@ -192,7 +192,7 @@ function computeOutputShapes() {
     /* BMM: torch.bmm / torch.matmul — batch matrix multiply
        Two inputs required: A (..., n, m) and B (..., m, p) → (..., n, p)
        Last dim of A must equal second-to-last dim of B. */
-    if (layer.type === 'bmm') {
+    if (layer.type === 'matmul') {
       const incoming = connections.filter(c => c.to === layerId);
       if (incoming.length < 2) { shapeCache[layerId] = null; return null; }
       const shapeA = resolveShape(incoming[0].from);

@@ -73,6 +73,7 @@ function loadState() {
       connections.length = 0;
       if (data.layers) data.layers.forEach(l => {
         if (l.type === 'dense') l.type = 'linear'; // migrate old saves
+        if (l.type === 'bmm')   l.type = 'matmul'; // migrate bmm → matmul
         layers.push(l);
       });
       if (data.connections) data.connections.forEach(c => connections.push(c));
@@ -125,7 +126,10 @@ function importFromFile() {
       try {
         const data = JSON.parse(ev.target.result);
         // migrate dense → linear
-        (data.layers || []).forEach(l => { if (l.type === 'dense') l.type = 'linear'; });
+        (data.layers || []).forEach(l => {
+          if (l.type === 'dense') l.type = 'linear';
+          if (l.type === 'bmm')   l.type = 'matmul';
+        });
         // push undo checkpoint before replacing state
         if (_prevSnap !== null) {
           undoStack.push(_prevSnap);

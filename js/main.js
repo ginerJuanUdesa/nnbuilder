@@ -24,7 +24,7 @@ function loop(ts) {
 
   if (gridDirty) nodesDirty = true;
 
-  const animatedTypes = ['flatten', 'unsqueeze', 'squeeze', 'softmax', 'add', 'bmm', 'scale', 'conv', 'mean', 'linear', 'input'];
+  const animatedTypes = ['flatten', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'conv', 'mean', 'linear', 'input'];
   const hasAnimated  = layers.some(l => animatedTypes.includes(l.type) && connections.some(c => c.from === l.id || c.to === l.id));
   const isAnimating = connectionMode || layerDragging || panDragging || !!paletteDragType || hasAnimated;
 
