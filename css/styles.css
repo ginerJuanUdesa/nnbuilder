@@ -35,7 +35,7 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   opacity: 1; border-color: rgba(0,255,136,0.7);
   box-shadow: 0 0 8px rgba(0,255,136,0.2);
 }
-#palette-file-actions button svg { width: 16px; height: 16px; display: block; }
+#palette-file-actions button svg { width: 24px; height: 24px; display: block; }
 .palette-item {
   margin: 5px 10px; padding: 12px 14px;
   border: 1px solid rgba(0, 255, 136, 0.3);
