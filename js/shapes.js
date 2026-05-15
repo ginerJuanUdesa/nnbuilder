@@ -189,6 +189,38 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* BMM: torch.bmm / torch.matmul — batch matrix multiply
+       Two inputs required: A (..., n, m) and B (..., m, p) → (..., n, p)
+       Last dim of A must equal second-to-last dim of B. */
+    if (layer.type === 'bmm') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length < 2) { shapeCache[layerId] = null; return null; }
+      const shapeA = resolveShape(incoming[0].from);
+      const shapeB = resolveShape(incoming[1].from);
+      if (!shapeA || !shapeB || shapeA.length < 2 || shapeB.length < 2) { shapeCache[layerId] = null; return null; }
+      const n = shapeA[shapeA.length - 2];
+      const m = shapeA[shapeA.length - 1];
+      const m2 = shapeB[shapeB.length - 2];
+      const p  = shapeB[shapeB.length - 1];
+      if (m !== m2) { shapeCache[layerId] = null; return null; } // inner dims mismatch
+      // batch dims: broadcast leading dims
+      const batchA = shapeA.slice(0, -2);
+      const batchB = shapeB.slice(0, -2);
+      const maxBatch = Math.max(batchA.length, batchB.length);
+      const padA = [...Array(maxBatch - batchA.length).fill(1), ...batchA];
+      const padB = [...Array(maxBatch - batchB.length).fill(1), ...batchB];
+      const batchOut = [];
+      let ok = true;
+      for (let i = 0; i < maxBatch; i++) {
+        const da = padA[i], db = padB[i];
+        if (da !== 1 && db !== 1 && da !== db) { ok = false; break; }
+        batchOut.push(Math.max(da, db));
+      }
+      if (!ok) { shapeCache[layerId] = null; return null; }
+      shapeCache[layerId] = [...batchOut, n, p];
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);

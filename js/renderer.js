@@ -263,6 +263,21 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
+      } else if (layer.type === 'bmm') {
+        const inc = connections.filter(cc => cc.to === layer.id);
+        const dispShape = getDisplayShape(layer.id);
+        const shA = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
+        const shB = inc.length > 1 ? getDisplayShape(inc[1].from) : null;
+        const fmtS = s => s ? `[${s.join(', ')}]` : '?';
+        const compatible = !!shapeCache[layer.id];
+        const status = inc.length < 2 ? 'needs 2 inputs'
+          : !compatible ? 'inner dim mismatch!'
+          : `${fmtS(shA)} @ ${fmtS(shB)}`;
+        nodeCtx.fillStyle = (!compatible && inc.length >= 2) ? '#ff4444' : (white ? tColor : `rgba(${hexToRgb(tColor)}, 0.55)`);
+        nodeCtx.measureText(status).width > boxHalfW * 2
+          ? wrapText(status, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(status, cx, baseY);
+
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
@@ -891,6 +906,63 @@ function drawAddHologram(layer, cx, cy, white) {
   nodeCtx.setLineDash([]); nodeCtx.restore();
 }
 
+/* --- BMM hologram: two tall matrices with @ symbol → result --- */
+function drawBmmHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '192, 96, 0' : '255, 149, 0';
+  const boxH     = layerTypes.bmm.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 3.8 + layer.id * 2.3) * 0.08 + Math.sin(time * 9.0 + layer.id * 0.4) * 0.04;
+  const rowsA = 4, colsA = 3; // A: (n, m)
+  const rowsB = 3, colsB = 4; // B: (m, p) — colsA === rowsB
+  const rowsC = 4, colsC = 4; // C: (n, p)
+  const cellSize = Math.max(4, Math.min(8, 6.5 * zoom));
+  const cellGap  = Math.max(1, 1.5 * zoom), cellStep = cellSize + cellGap;
+  const gridAW = colsA * cellStep - cellGap, gridAH = rowsA * cellStep - cellGap;
+  const gridBW = colsB * cellStep - cellGap, gridBH = rowsB * cellStep - cellGap;
+  const gridCW = colsC * cellStep - cellGap, gridCH = rowsC * cellStep - cellGap;
+  const symW   = Math.max(10, 14 * zoom);
+  const totalW = gridAW + symW + gridBW + symW + gridCW;
+  const gap    = Math.max(8, 11 * zoom);
+  const topY   = cy - boxH / 2 - gap - Math.max(gridAH, gridBH, gridCH);
+  const aX     = cx - totalW / 2;
+  const bX     = aX + gridAW + symW;
+  const cX     = bX + gridBW + symW;
+  const scanRow = Math.floor(time * 4) % rowsA;
+  const scanCol = Math.floor(time * 4) % colsB;
+
+  function drawMat(ox, topY2, rows, cols, hiRow, hiCol) {
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const px = ox + c * cellStep, py = topY2 + r * cellStep;
+        const hot = r === hiRow || c === hiCol;
+        nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+        if (hot) { nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.32 * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize); }
+        nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(hot ? 0.75 : 0.35) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+      }
+    }
+  }
+  const midA = topY + (Math.max(gridAH, gridBH, gridCH) - gridAH) / 2;
+  const midB = topY + (Math.max(gridAH, gridBH, gridCH) - gridBH) / 2;
+  const midC = topY + (Math.max(gridAH, gridBH, gridCH) - gridCH) / 2;
+  drawMat(aX, midA, rowsA, colsA, scanRow, -1);
+  drawMat(bX, midB, rowsB, colsB, -1, scanCol);
+  drawMat(cX, midC, rowsC, colsC, scanRow, scanCol);
+
+  const fontSize = Math.max(8, 11 * zoom);
+  nodeCtx.font = `bold ${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
+  const midY = topY + Math.max(gridAH, gridBH, gridCH) / 2;
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.8 * flicker})`;
+  nodeCtx.fillText('@', aX + gridAW + symW / 2, midY);
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.55 * flicker})`;
+  nodeCtx.fillText('=', bX + gridBW + symW / 2, midY);
+
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.18 * flicker})`; nodeCtx.lineWidth = 0.5;
+  nodeCtx.setLineDash([3, 4]); nodeCtx.beginPath(); nodeCtx.moveTo(cx, topY + Math.max(gridAH, gridBH, gridCH) + 4); nodeCtx.lineTo(cx, cy - boxH / 2); nodeCtx.stroke();
+  nodeCtx.setLineDash([]); nodeCtx.restore();
+}
+
 /* --- Main draw: clear → shapes → connections → holograms → boxes --- */
 function draw() {
   nodeCtx.clearRect(0, 0, W, H);
@@ -964,6 +1036,7 @@ function draw() {
         if (l.type === 'squeeze'   && isConnected && !isHologramBlocked(l)) drawSqueezeHologram(l, sx, sy, white);
     if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l)) drawSoftmaxHologram(l, sx, sy, white);
     if (l.type === 'add'       && isConnected && !isHologramBlocked(l)) drawAddHologram(l, sx, sy, white);
+        if (l.type === 'bmm'       && isConnected && !isHologramBlocked(l)) drawBmmHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 

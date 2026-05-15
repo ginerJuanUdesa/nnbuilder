@@ -317,6 +317,16 @@ function openPropEditor(layer) {
       });
       setTimeout(() => dimInp.focus(), 50);
     }
+  } else if (layer.type === 'bmm') {
+    peTitle.textContent = 'BATCH MATMUL';
+    const inc = connections.filter(c => c.to === layer.id);
+    const shA = inc.length > 0 ? shapeCache[inc[0].from] : null;
+    const shB = inc.length > 1 ? shapeCache[inc[1].from] : null;
+    const fmtS = s => s ? `[${s.join(', ')}]` : '—';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label">A</span><span class="pe-val">${fmtS(shA)}</span></div>
+      <div class="pe-row"><span class="pe-label">B</span><span class="pe-val">${fmtS(shB)}</span></div>
+      <div class="pe-hint">A @ B  (inner dims must match)</div>`;
   } else if (layer.type === 'squeeze') {
     peTitle.textContent = 'SQUEEZE';
     const dimVal = layer.dim !== undefined && layer.dim !== null ? layer.dim : '';

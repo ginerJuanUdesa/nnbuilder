@@ -72,6 +72,8 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
 .palette-item.type-mean .name { color: #ff8c00; }
 .palette-item.type-conv { border-color: rgba(0, 204, 221, 0.4); }
 .palette-item.type-conv .name { color: #00ccdd; }
+.palette-item.type-bmm       { border-color: rgba(255, 149, 0, 0.4); }
+.palette-item.type-bmm       .name { color: #ff9500; }
 .palette-item.type-add       { border-color: rgba(170, 255, 0, 0.4); }
 .palette-item.type-add       .name { color: #aaff00; }
 .palette-item.type-softmax   { border-color: rgba(255, 51, 51, 0.4); }
