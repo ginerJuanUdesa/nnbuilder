@@ -230,6 +230,24 @@ function computeOutputShapes() {
       return srcShape;
     }
 
+    /* TRANSPOSE: torch.transpose(input, dim0, dim1) — swap two dims */
+    if (layer.type === 'transpose') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[0].from);
+      if (!srcShape) { shapeCache[layerId] = null; return null; }
+      const n  = srcShape.length;
+      let d0 = layer.dim0 !== undefined ? Number(layer.dim0) : 0;
+      let d1 = layer.dim1 !== undefined ? Number(layer.dim1) : 1;
+      if (d0 < 0) d0 = n + d0;
+      if (d1 < 0) d1 = n + d1;
+      if (d0 < 0 || d0 >= n || d1 < 0 || d1 >= n) { shapeCache[layerId] = null; return null; }
+      const out = [...srcShape];
+      [out[d0], out[d1]] = [out[d1], out[d0]];
+      shapeCache[layerId] = out;
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);

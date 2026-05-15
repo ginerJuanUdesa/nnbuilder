@@ -16,6 +16,7 @@ const layerTypes = {
   add:       { w: 140, h: 70, color: '#aaff00', glow: '#aaff00', bg: 'rgba(30, 50, 0, 0.97)',  lightColor: '#5a8a00' },
   matmul:    { w: 140, h: 70, color: '#ff9500', glow: '#ff9500', bg: 'rgba(60, 35, 0, 0.97)',  lightColor: '#c06000' },
   scale:     { w: 140, h: 70, color: '#44ffcc', glow: '#44ffcc', bg: 'rgba(0, 60, 50, 0.97)',   lightColor: '#009988' },
+  transpose: { w: 140, h: 70, color: '#aa88ff', glow: '#aa88ff', bg: 'rgba(30, 0, 70, 0.97)',  lightColor: '#6644cc' },
 };
 
 const ALL_FNS = ['none', 'relu', 'gelu', 'swiglu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'softplus', 'mish'];

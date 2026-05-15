@@ -98,6 +98,7 @@ function drawLayerBox(layer, cx, cy) {
       add:       'rgba(230, 255, 210, 0.97)',
       bmm:       'rgba(255, 235, 200, 0.97)',
       scale:     'rgba(200, 245, 238, 0.97)',
+      transpose: 'rgba(225, 215, 255, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -260,9 +261,21 @@ function drawLayerBox(layer, cx, cy) {
         const op     = layer.op     || '/';
         const factor = layer.factor !== undefined ? String(layer.factor) : '1';
         const sym    = op === '/' ? '÷' : '×';
-        const text   = `${sym} ${factor}`;
+        const scaleFontSize = Math.max(11, 16 * zoom);
+        nodeCtx.font = `bold ${scaleFontSize}px Courier New`;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.8)`;
+        nodeCtx.fillText(`${sym} ${factor}`, cx, baseY);
+        nodeCtx.font = subFontStr; // restore for next branch
+
+      } else if (layer.type === 'transpose') {
+        const d0  = layer.dim0 !== undefined ? layer.dim0 : 0;
+        const d1  = layer.dim1 !== undefined ? layer.dim1 : 1;
+        const out = shapeCache[layer.id];
+        const text = out ? `[${getDisplayShape(layer.id).join(', ')}]` : `dim ${d0}↔${d1}`;
         nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
-        nodeCtx.fillText(text, cx, baseY);
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
@@ -952,6 +965,54 @@ function drawSuperboxes(white) {
 }
 
 /* --- BMM hologram: two tall matrices with @ symbol → result --- */
+function drawTransposeHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '102, 68, 204' : '170, 136, 255';
+  const boxH     = layerTypes.transpose.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 2.9 + layer.id * 1.4) * 0.09 + Math.sin(time * 8.1 + layer.id * 0.5) * 0.04;
+  const rows = 3, cols = 4; // input: rows×cols
+  const cellSize = Math.max(4, Math.min(8, 6.5 * zoom));
+  const cellGap  = Math.max(1, 1.5 * zoom), cellStep = cellSize + cellGap;
+  const gridAW   = cols * cellStep - cellGap, gridAH = rows * cellStep - cellGap;
+  const gridBW   = rows * cellStep - cellGap, gridBH = cols * cellStep - cellGap; // transposed
+  const symW     = Math.max(10, 14 * zoom);
+  const totalW   = gridAW + symW + gridBW;
+  const gap      = Math.max(8, 11 * zoom);
+  const topY     = cy - boxH / 2 - gap - Math.max(gridAH, gridBH);
+  const aX       = cx - totalW / 2;
+  const bX       = aX + gridAW + symW;
+  // animate: highlight diagonal sweep
+  const diagT    = (time * 2) % (rows + cols);
+
+  function drawGrid(ox, oy, r, c, transposed) {
+    for (let ri = 0; ri < r; ri++) {
+      for (let ci = 0; ci < c; ci++) {
+        const px = ox + ci * cellStep, py = oy + ri * cellStep;
+        const srcR = transposed ? ci : ri, srcC = transposed ? ri : ci;
+        const onDiag = Math.abs(srcR - srcC - diagT + rows) < 1.2;
+        const base = hashF(srcR * 13 + layer.id, srcC * 7 + layer.id) * 0.25 + 0.1;
+        nodeCtx.fillStyle   = `rgba(${colorRgb}, ${(onDiag ? base + 0.35 : base) * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+        nodeCtx.strokeStyle = `rgba(${colorRgb}, ${(onDiag ? 0.75 : 0.35) * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+      }
+    }
+  }
+
+  const midAY = topY + (Math.max(gridAH, gridBH) - gridAH) / 2;
+  const midBY = topY + (Math.max(gridAH, gridBH) - gridBH) / 2;
+  drawGrid(aX, midAY, rows, cols, false);
+  drawGrid(bX, midBY, cols, rows, true);
+
+  const fontSize = Math.max(8, 11 * zoom);
+  nodeCtx.font = `bold ${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
+  const midY = topY + Math.max(gridAH, gridBH) / 2;
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.85 * flicker})`;
+  nodeCtx.fillText('T', aX + gridAW + symW / 2, midY);
+
+  nodeCtx.restore();
+}
+
 function drawScaleHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
@@ -1171,6 +1232,7 @@ function draw() {
     if (l.type === 'add'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawAddHologram(l, sx, sy, white);
     if (l.type === 'matmul'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawMatmulHologram(l, sx, sy, white);
     if (l.type === 'scale'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawScaleHologram(l, sx, sy, white);
+    if (l.type === 'transpose' && isConnected && !isHologramBlocked(l) && !inSuperbox) drawTransposeHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 

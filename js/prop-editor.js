@@ -317,6 +317,25 @@ function openPropEditor(layer) {
       });
       setTimeout(() => dimInp.focus(), 50);
     }
+  } else if (layer.type === 'transpose') {
+    peTitle.textContent = 'TRANSPOSE';
+    if (layer.dim0 === undefined) layer.dim0 = 0;
+    if (layer.dim1 === undefined) layer.dim1 = 1;
+    const inc = connections.filter(c => c.to === layer.id);
+    const src = inc.length > 0 ? shapeCache[inc[0].from] : null;
+    const out = shapeCache[layer.id];
+    const fmtS = s => s ? `[${s.join(', ')}]` : '?';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(170,136,255,0.4);">${fmtS(src)} → ${fmtS(out)}</span></div>
+      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIM0</span><input class="pe-input" type="number" value="${layer.dim0}" id="pe-t-dim0" step="1" placeholder="0"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">DIM1</span><input class="pe-input" type="number" value="${layer.dim1}" id="pe-t-dim1" step="1" placeholder="1"></div>
+      <div class="pe-hint">torch.transpose(x, dim0, dim1) — supports negatives</div>`;
+    const d0inp = peBody.querySelector('#pe-t-dim0');
+    const d1inp = peBody.querySelector('#pe-t-dim1');
+    d0inp.addEventListener('change', () => { layer.dim0 = parseInt(d0inp.value) || 0; saveState(); });
+    d1inp.addEventListener('change', () => { layer.dim1 = parseInt(d1inp.value) || 1; saveState(); });
+    setTimeout(() => d0inp.focus(), 50);
+
   } else if (layer.type === 'scale') {
     peTitle.textContent = 'SCALE';
     if (layer.op     === undefined) layer.op     = '/';
