@@ -243,8 +243,10 @@ function sbsSortedByDepth() {
 /* Find which superbox a world point falls into (deepest child first) */
 function hitTestSuperboxDeepest(wx, wy) {
   // iterate sorted deepest-first so children take priority
+  // bgVisible===false superboxes are invisible — skip so they can't be dragged
   const sorted = sbsSortedByDepth().reverse();
   for (const sb of sorted) {
+    if (sb.bgVisible === false) continue;
     if (wx >= sb.x && wx <= sb.x + sb.w && wy >= sb.y && wy <= sb.y + sb.h) {
       return superboxes.indexOf(sb);
     }
@@ -261,6 +263,7 @@ function hitTestSuperboxEdge(wx, wy) {
   const th = Math.max(6, 8 / zoom); // 8 screen px in world space
   for (let i = superboxes.length - 1; i >= 0; i--) {
     const sb = superboxes[i];
+    if (sb.bgVisible === false) continue;
     const { x, y, w, h } = sb;
     const inX  = wx >= x - th && wx <= x + w + th;
     const inY  = wy >= y - th && wy <= y + h + th;

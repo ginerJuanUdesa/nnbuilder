@@ -184,26 +184,48 @@ window.addEventListener('mousemove', e => {
       const dx = wx - sbDragOffX - sb.x;
       const dy = wy - sbDragOffY - sb.y;
       sb.x += dx; sb.y += dy;
-      // move all contained layers
-      sb.layerIds.forEach(lid => {
-        const l = layers.find(x => x.id === lid);
-        if (l) { l.x += dx; l.y += dy; }
-      });
-      // move child superboxes recursively
-      const moveSbChildren = (parentId, ddx, ddy) => {
+
+      // Collect ALL descendant SBs and their layer IDs (avoid double-move:
+      // layers inside nested SBs appear in both parent & child layerIds due
+      // to membership sync, so we move each thing exactly once).
+      const _descSbIds   = new Set();
+      const _descLayerIds = new Set();
+      const _collectDesc = pid => {
         superboxes.forEach(c => {
-          if (c.parentId === parentId) {
-            c.x += ddx; c.y += ddy;
-            // move layers owned by this child superbox
-            c.layerIds.forEach(lid => {
-              const cl = layers.find(x => x.id === lid);
-              if (cl) { cl.x += ddx; cl.y += ddy; }
-            });
-            moveSbChildren(c.id, ddx, ddy);
+          if (c.parentId === pid) {
+            _descSbIds.add(c.id);
+            c.layerIds.forEach(id => _descLayerIds.add(id));
+            _collectDesc(c.id);
           }
         });
       };
-      moveSbChildren(sb.id, dx, dy);
+      _collectDesc(sb.id);
+
+      // Move direct layers (skip any that live inside a child SB)
+      sb.layerIds.forEach(lid => {
+        if (_descLayerIds.has(lid)) return;
+        const l = layers.find(x => x.id === lid);
+        if (l) { l.x += dx; l.y += dy; }
+      });
+      // Move all descendant SBs
+      _descSbIds.forEach(cid => {
+        const c = superboxes.find(s => s.id === cid);
+        if (c) { c.x += dx; c.y += dy; }
+      });
+      // Move all layers inside descendant SBs (exactly once)
+      _descLayerIds.forEach(lid => {
+        const l = layers.find(x => x.id === lid);
+        if (l) { l.x += dx; l.y += dy; }
+      });
+
+      // Build full set of moved layer IDs for elbowX update
+      const _allMovedLayerIds = new Set([...sb.layerIds, ..._descLayerIds]);
+      // Shift elbowX for connections where both endpoints moved
+      connections.forEach(c => {
+        if (c.elbowX !== undefined && _allMovedLayerIds.has(c.from) && _allMovedLayerIds.has(c.to)) {
+          c.elbowX += dx;
+        }
+      });
     }
     nodesDirty = true; return;
   }
@@ -363,29 +385,47 @@ window.addEventListener('mouseup', e => {
   if (sbDragging) {
     const sb = superboxes.find(s => s.id === sbDragId);
     if (sb) {
-      // snap superbox origin to grid, apply same delta to contained layers + child SBs recursively
+      // snap superbox origin to grid — same dedup logic as mousemove drag
       const snappedX = snapToGrid(sb.x);
       const snappedY = snapToGrid(sb.y);
       const dx = snappedX - sb.x;
       const dy = snappedY - sb.y;
       sb.x = snappedX; sb.y = snappedY;
-      sb.layerIds.forEach(lid => {
-        const l = layers.find(x => x.id === lid);
-        if (l) { l.x = snapToGrid(l.x + dx); l.y = snapToGrid(l.y + dy); }
-      });
-      const snapSbChildren = (parentId, ddx, ddy) => {
+
+      const _snapDescSbIds    = new Set();
+      const _snapDescLayerIds = new Set();
+      const _collectSnapDesc  = pid => {
         superboxes.forEach(c => {
-          if (c.parentId === parentId) {
-            c.x = snapToGrid(c.x + ddx); c.y = snapToGrid(c.y + ddy);
-            c.layerIds.forEach(lid => {
-              const cl = layers.find(x => x.id === lid);
-              if (cl) { cl.x = snapToGrid(cl.x + ddx); cl.y = snapToGrid(cl.y + ddy); }
-            });
-            snapSbChildren(c.id, ddx, ddy);
+          if (c.parentId === pid) {
+            _snapDescSbIds.add(c.id);
+            c.layerIds.forEach(id => _snapDescLayerIds.add(id));
+            _collectSnapDesc(c.id);
           }
         });
       };
-      snapSbChildren(sb.id, dx, dy);
+      _collectSnapDesc(sb.id);
+
+      sb.layerIds.forEach(lid => {
+        if (_snapDescLayerIds.has(lid)) return;
+        const l = layers.find(x => x.id === lid);
+        if (l) { l.x = snapToGrid(l.x + dx); l.y = snapToGrid(l.y + dy); }
+      });
+      _snapDescSbIds.forEach(cid => {
+        const c = superboxes.find(s => s.id === cid);
+        if (c) { c.x = snapToGrid(c.x + dx); c.y = snapToGrid(c.y + dy); }
+      });
+      _snapDescLayerIds.forEach(lid => {
+        const l = layers.find(x => x.id === lid);
+        if (l) { l.x = snapToGrid(l.x + dx); l.y = snapToGrid(l.y + dy); }
+      });
+
+      // Snap elbowX for internal connections
+      const _snapAllMoved = new Set([...sb.layerIds, ..._snapDescLayerIds]);
+      connections.forEach(c => {
+        if (c.elbowX !== undefined && _snapAllMoved.has(c.from) && _snapAllMoved.has(c.to)) {
+          c.elbowX = snapToGrid(c.elbowX + dx);
+        }
+      });
     }
     // assign or remove parent based on where center landed
     const _cx = sb.x + sb.w / 2, _cy = sb.y + sb.h / 2;
