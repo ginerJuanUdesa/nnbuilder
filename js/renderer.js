@@ -1005,6 +1005,7 @@ function draw() {
   computeOutputShapes();
   drawOrigin();
   const white = document.body.classList.contains('white-mode');
+  const SB_COLLAPSE_ZOOM = 0.35;
 
   // draw connections
   for (let ci = 0; ci < connections.length; ci++) {
@@ -1057,7 +1058,6 @@ function draw() {
   drawSuperboxes(white);
 
   // draw superbox collapsed fills when zoomed out (before layers so they're under)
-  const SB_COLLAPSE_ZOOM = 0.35;
   if (zoom < SB_COLLAPSE_ZOOM) {
     for (const sb of superboxes) {
       const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
