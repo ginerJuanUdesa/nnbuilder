@@ -113,9 +113,13 @@ body.white-mode .palette-item.type-scale     .name { color: #009988; }
   text-shadow: 0 0 6px #0088ff;
 }
 #icon-strip {
-  position: fixed; top: 10px; right: 16px;
+  position: fixed; top: 44px; right: 16px;
   display: flex; gap: 8px; align-items: center;
   z-index: 15;
+  background: rgba(5, 10, 20, 0.92);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 4px;
+  padding: 4px 10px;
 }
 .strip-btn {
   cursor: pointer; user-select: none;
@@ -127,7 +131,7 @@ body.white-mode .palette-item.type-scale     .name { color: #009988; }
 .strip-btn:hover { opacity: 1; }
 #theme-toggle { font-size: 32px; }
 #vars-panel {
-  position: fixed; top: 52px; right: 16px;
+  position: fixed; top: 90px; right: 16px;
   min-width: 460px;
   background: rgba(5, 10, 20, 0.92);
   border: 1px solid rgba(0, 255, 136, 0.2);
@@ -378,6 +382,7 @@ body.white-mode #hud .label { color: #005abe; }
 body.white-mode #help { color: #666; text-shadow: none; }
 body.white-mode #layer-count { color: #005abe; text-shadow: none; }
 
+body.white-mode #icon-strip { background: #ffffff; border-color: rgba(0, 0, 0, 0.1); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08); }
 body.white-mode #icon-strip .strip-btn { color: #005abe; }
 body.white-mode #vars-panel {
   background: #ffffff;
