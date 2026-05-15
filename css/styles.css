@@ -44,6 +44,28 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
   box-shadow: 0 0 8px rgba(0,255,136,0.2);
 }
 #palette-file-actions button svg { width: 24px; height: 24px; display: block; }
+#palette-search-wrap {
+  padding: 6px 10px 8px 10px;
+  border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+}
+#palette-search {
+  width: 100%; box-sizing: border-box;
+  background: rgba(0, 20, 40, 0.7);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+  border-radius: 4px;
+  color: #00ff88; font-family: 'Courier New', monospace; font-size: 12px;
+  padding: 5px 8px; outline: none;
+  transition: border-color 0.15s;
+}
+#palette-search:focus { border-color: rgba(0, 255, 136, 0.7); }
+#palette-search::placeholder { color: rgba(0, 255, 136, 0.3); }
+body.white-mode #palette-search-wrap { border-color: rgba(0,0,0,0.08); }
+body.white-mode #palette-search {
+  background: rgba(255,255,255,0.8); color: #0a7a3e;
+  border-color: rgba(0, 100, 60, 0.25);
+}
+body.white-mode #palette-search::placeholder { color: rgba(0, 100, 60, 0.35); }
+body.white-mode #palette-search:focus { border-color: rgba(0, 100, 60, 0.7); }
 .palette-item {
   margin: 5px 10px; padding: 12px 14px;
   border: 1px solid rgba(0, 255, 136, 0.3);

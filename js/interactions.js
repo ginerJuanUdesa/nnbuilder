@@ -395,3 +395,57 @@ document.querySelectorAll('.palette-group-header').forEach(header => {
     header.nextElementSibling.classList.toggle('open');
   });
 });
+
+/* Palette search */
+(function() {
+  const searchInp = document.getElementById('palette-search');
+  // remember which groups were open before search
+  let preSearchOpen = null;
+
+  searchInp.addEventListener('input', () => {
+    const q = searchInp.value.trim().toLowerCase();
+    const groups = document.querySelectorAll('.palette-group');
+
+    if (!q) {
+      // restore pre-search state
+      groups.forEach(group => {
+        group.style.display = '';
+        const header = group.querySelector('.palette-group-header');
+        const items  = group.querySelector('.palette-group-items');
+        const wasOpen = preSearchOpen ? preSearchOpen.get(group) : false;
+        items.querySelectorAll('.palette-item').forEach(item => item.style.display = '');
+        if (wasOpen) { header.classList.add('open'); items.classList.add('open'); }
+        else         { header.classList.remove('open'); items.classList.remove('open'); }
+      });
+      preSearchOpen = null;
+      return;
+    }
+
+    // save state on first keystroke
+    if (!preSearchOpen) {
+      preSearchOpen = new Map();
+      groups.forEach(g => preSearchOpen.set(g, g.querySelector('.palette-group-header').classList.contains('open')));
+    }
+
+    groups.forEach(group => {
+      const header = group.querySelector('.palette-group-header');
+      const items  = group.querySelector('.palette-group-items');
+      const allItems = items.querySelectorAll('.palette-item');
+      let anyMatch = false;
+      allItems.forEach(item => {
+        const name = (item.querySelector('.name')?.textContent || '').toLowerCase();
+        const desc = (item.querySelector('.desc')?.textContent || '').toLowerCase();
+        const match = name.includes(q) || desc.includes(q);
+        item.style.display = match ? '' : 'none';
+        if (match) anyMatch = true;
+      });
+      if (anyMatch) {
+        group.style.display = '';
+        header.classList.add('open');
+        items.classList.add('open');
+      } else {
+        group.style.display = 'none';
+      }
+    });
+  });
+})();
