@@ -48,6 +48,12 @@ let layerDragId    = null;
 let layerDragOffX  = 0, layerDragOffY  = 0;
 let layerDragOrigX = 0, layerDragOrigY = 0;
 
+/* Connection drag (repositioning elbow) */
+let connDragging    = false;
+let connDragIdx     = -1;
+let connDragStartSX = 0;
+let connDragStartOff = 0;
+
 /* Copy/paste */
 let clipboard = null;
 

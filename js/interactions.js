@@ -84,7 +84,13 @@ window.addEventListener('mousedown', e => {
 
   // ── try connection hit ──
   const connHit = hitTestConnection(e.clientX, e.clientY, 8);
-  if (connHit !== -1) { selectedConnIdx = connHit; selectedLayerId = null; closePropEditor(); return; }
+  if (connHit !== -1) {
+    selectedConnIdx = connHit; selectedLayerId = null; closePropEditor();
+    connDragIdx      = connHit;
+    connDragStartSX  = e.clientX;
+    connDragStartOff = connections[connHit].midXOffset || 0;
+    return;
+  }
 
   // ── try superbox ──
   const sbIdx = hitTestSuperbox(wx, wy);
@@ -100,6 +106,7 @@ window.addEventListener('mousedown', e => {
 
   // ── nothing hit: deselect + pan ──
   selectedConnIdx = -1; selectedLayerId = null; selectedSuperboxId = null; closePropEditor();
+  connDragIdx = -1;
   panDragging = true; panStartX = e.clientX; panStartY = e.clientY; panCamX = camX; panCamY = camY;
   document.body.style.cursor = 'grabbing';
 });
@@ -149,6 +156,17 @@ window.addEventListener('mousemove', e => {
       document.body.style.cursor = hitTestLayer(wx, wy) ? 'pointer' : 'default';
     }
     return;
+  }
+
+  if (connDragIdx !== -1 && !layerDragging && !panDragging) {
+    const dx = e.clientX - connDragStartSX;
+    if (Math.abs(dx) > 3) {
+      connDragging = true;
+      connections[connDragIdx].midXOffset = connDragStartOff + dx / zoom;
+      nodesDirty = true;
+      document.body.style.cursor = 'ew-resize';
+      return;
+    }
   }
 
   if (layerDragging) {
@@ -258,6 +276,14 @@ window.addEventListener('mouseup', e => {
     saveState(); nodesDirty = true; return;
   }
 
+  if (connDragging) {
+    connDragging = false; connDragIdx = -1;
+    saveState(); nodesDirty = true;
+    document.body.style.cursor = 'default';
+    return;
+  }
+  connDragIdx = -1;
+
   if (layerDragging) {
     const layer = layers.find(l => l.id === layerDragId);
     if (layer) {
@@ -311,6 +337,7 @@ window.addEventListener('wheel', e => {
 /* --- Right-click: exit connect mode / delete connection / teleport --- */
 window.addEventListener('contextmenu', e => {
   e.preventDefault();
+  connDragging = false; connDragIdx = -1;
   if (connectionMode) { connectionMode = false; connectStartId = null; syncStripButtons(); return; }
   const connIdx = hitTestConnection(e.clientX, e.clientY);
   if (connIdx !== -1) { connections.splice(connIdx, 1); selectedConnIdx = -1; saveState(); return; }

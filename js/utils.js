@@ -228,7 +228,7 @@ function hitTestConnection(sx, sy, threshold) {
     const fromLayer = layers.find(l => l.id === c.from);
     const toLayer   = layers.find(l => l.id === c.to);
     if (!fromLayer || !toLayer) continue;
-    const path = buildConnPath(fromLayer, toLayer);
+    const path = buildConnPath(fromLayer, toLayer, c);
     for (let j = 0; j < path.length - 1; j++) {
       const p1 = path[j], p2 = path[j + 1];
       const dx = p2.x - p1.x, dy = p2.y - p1.y;

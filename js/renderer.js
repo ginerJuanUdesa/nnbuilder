@@ -35,12 +35,12 @@ function getInputPortPos(layer) {
   return { x: layer.x - layerTypes[layer.type].w / 2, y: layer.y };
 }
 
-function buildConnPath(fromLayer, toLayer) {
+function buildConnPath(fromLayer, toLayer, conn) {
   const out = getPortPos(fromLayer);
   const inp = getInputPortPos(toLayer);
   const [sx1, sy1] = worldToScreen(out.x, out.y);
   const [sx2, sy2] = worldToScreen(inp.x, inp.y);
-  const midX = (sx1 + sx2) / 2;
+  const midX = (sx1 + sx2) / 2 + ((conn && conn.midXOffset) ? conn.midXOffset * zoom : 0);
   return [{ x: sx1, y: sy1 }, { x: midX, y: sy1 }, { x: midX, y: sy2 }, { x: sx2, y: sy2 }];
 }
 
@@ -1212,7 +1212,7 @@ function draw() {
       if (fromIn && toIn) continue;
     }
 
-    const path       = buildConnPath(fromLayer, toLayer);
+    const path       = buildConnPath(fromLayer, toLayer, c);
     const ft         = layerTypes[fromLayer.type];
     const isSelected = ci === selectedConnIdx;
     const connAlpha  = white ? 0.75 : 0.4;
@@ -1242,6 +1242,22 @@ function draw() {
       nodeCtx.strokeStyle = '#fff'; nodeCtx.lineWidth = 2; nodeCtx.beginPath();
       nodeCtx.moveTo(bx - btnR * 0.4, by - btnR * 0.4); nodeCtx.lineTo(bx + btnR * 0.4, by + btnR * 0.4);
       nodeCtx.moveTo(bx + btnR * 0.4, by - btnR * 0.4); nodeCtx.lineTo(bx - btnR * 0.4, by + btnR * 0.4);
+      nodeCtx.stroke();
+
+      // ↔ drag handle on middle vertical segment
+      const hx = path[1].x, hy = (path[1].y + path[2].y) / 2;
+      const hr = Math.max(5, 6 * zoom);
+      nodeCtx.beginPath(); nodeCtx.arc(hx, hy, hr, 0, Math.PI * 2);
+      nodeCtx.fillStyle = white ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.18)'; nodeCtx.fill();
+      nodeCtx.strokeStyle = white ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)';
+      nodeCtx.lineWidth = 1.5; nodeCtx.stroke();
+      const ar = Math.max(3, 3.5 * zoom);
+      nodeCtx.strokeStyle = white ? 'rgba(0,0,0,0.8)' : '#fff';
+      nodeCtx.lineWidth = 1.5; nodeCtx.beginPath();
+      nodeCtx.moveTo(hx - ar * 2, hy); nodeCtx.lineTo(hx - ar, hy - ar * 0.6);
+      nodeCtx.moveTo(hx - ar * 2, hy); nodeCtx.lineTo(hx - ar, hy + ar * 0.6);
+      nodeCtx.moveTo(hx + ar * 2, hy); nodeCtx.lineTo(hx + ar, hy - ar * 0.6);
+      nodeCtx.moveTo(hx + ar * 2, hy); nodeCtx.lineTo(hx + ar, hy + ar * 0.6);
       nodeCtx.stroke();
     }
   }
