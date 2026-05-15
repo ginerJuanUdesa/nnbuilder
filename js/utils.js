@@ -63,7 +63,29 @@ function getDisplayShape(layerId) {
     out.splice(Math.max(0, Math.min(actualDim, srcDisp.length)), 0, 1);
     return out;
   }
-  if (layer.type === 'softmax' || layer.type === 'add') {
+  if (layer.type === 'softmax') {
+    const inc = connections.filter(c => c.to === layerId);
+    return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
+  }
+  if (layer.type === 'add') {
+    const inc = connections.filter(c => c.to === layerId);
+    if (inc.length === 0) return resolved;
+    const dispShapes = inc.map(c => getDisplayShape(c.from)).filter(Boolean);
+    if (dispShapes.length === 0) return resolved;
+    // Apply PyTorch broadcasting over display shapes (preserves variable names)
+    const maxNdim = Math.max(...dispShapes.map(s => s.length));
+    const padded  = dispShapes.map(s => [...Array(maxNdim - s.length).fill(1), ...s]);
+    const out = [];
+    let compatible = true;
+    for (let i = 0; i < maxNdim; i++) {
+      const dims    = padded.map(s => s[i]);
+      const nonOnes = dims.filter(d => d !== 1 && d !== '1');
+      if (nonOnes.length > 0 && !nonOnes.every(d => d === nonOnes[0])) { compatible = false; break; }
+      out.push(nonOnes.length > 0 ? nonOnes[0] : 1);
+    }
+    return compatible ? out : resolved;
+  }
+  if (layer.type === 'output') {
     const inc = connections.filter(c => c.to === layerId);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
   }
