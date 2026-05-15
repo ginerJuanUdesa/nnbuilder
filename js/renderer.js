@@ -1074,7 +1074,7 @@ function drawMatmulHologram(layer, cx, cy, white) {
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
 
   const colorRgb = white ? '192, 96, 0' : '255, 149, 0';
-  const boxH     = layerTypes.bmm.h * zoom;
+  const boxH     = layerTypes.matmul.h * zoom;
   const flicker  = 0.84 + Math.sin(time * 3.8 + layer.id * 2.3) * 0.08 + Math.sin(time * 9.0 + layer.id * 0.4) * 0.04;
   const rowsA = 4, colsA = 3; // A: (n, m)
   const rowsB = 3, colsB = 4; // B: (m, p) — colsA === rowsB
