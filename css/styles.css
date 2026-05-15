@@ -130,6 +130,7 @@ body.white-mode .palette-item.type-scale     .name { color: #009988; }
 }
 .strip-btn:hover { opacity: 1; }
 #theme-toggle { font-size: 32px; }
+body.white-mode #theme-toggle { transform: scaleX(-1); }
 #vars-panel {
   position: fixed; top: 90px; right: 16px;
   min-width: 460px;
