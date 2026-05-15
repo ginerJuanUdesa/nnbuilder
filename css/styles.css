@@ -82,6 +82,10 @@ body { background: #0a0a0f; overflow: hidden; font-family: 'Courier New', monosp
 .palette-item.type-squeeze   .name { color: #c87af0; }
 .palette-item.type-unsqueeze { border-color: rgba(224, 96, 160, 0.4); }
 .palette-item.type-unsqueeze .name { color: #e060a0; }
+.palette-item.type-scale     { border-color: rgba(68, 255, 204, 0.4); }
+.palette-item.type-scale     .name { color: #44ffcc; }
+body.white-mode .palette-item.type-scale     { background: rgba(0, 153, 136, 0.08); border-color: rgba(0, 153, 136, 0.4); }
+body.white-mode .palette-item.type-scale     .name { color: #009988; }
 
 #hud {
   position: fixed; top: 14px; left: 256px;

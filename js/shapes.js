@@ -221,6 +221,15 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* SCALE: element-wise scalar multiply/divide — shape pass-through */
+    if (layer.type === 'scale') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[0].from);
+      shapeCache[layerId] = srcShape;
+      return srcShape;
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);

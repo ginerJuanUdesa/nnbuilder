@@ -97,6 +97,7 @@ function drawLayerBox(layer, cx, cy) {
       softmax:   'rgba(255, 220, 220, 0.97)',
       add:       'rgba(230, 255, 210, 0.97)',
       bmm:       'rgba(255, 235, 200, 0.97)',
+      scale:     'rgba(200, 245, 238, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -254,6 +255,14 @@ function drawLayerBox(layer, cx, cy) {
         nodeCtx.measureText(status).width > boxHalfW * 2
           ? wrapText(status, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(status, cx, baseY);
+
+      } else if (layer.type === 'scale') {
+        const op     = layer.op     || '/';
+        const factor = layer.factor !== undefined ? String(layer.factor) : '1';
+        const sym    = op === '/' ? '÷' : '×';
+        const text   = `${sym} ${factor}`;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
@@ -943,6 +952,62 @@ function drawSuperboxes(white) {
 }
 
 /* --- BMM hologram: two tall matrices with @ symbol → result --- */
+function drawScaleHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '0, 153, 136' : '68, 255, 204';
+  const boxH     = layerTypes.scale.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 3.2 + layer.id * 1.7) * 0.09 + Math.sin(time * 7.5 + layer.id * 0.6) * 0.04;
+  const pulse    = 0.5 + 0.5 * Math.sin(time * 2.5 + layer.id * 0.9);
+  const rows = 3, cols = 4;
+  const cellSize = Math.max(4, Math.min(8, 6.5 * zoom));
+  const cellGap  = Math.max(1, 1.5 * zoom), cellStep = cellSize + cellGap;
+  const gridW    = cols * cellStep - cellGap;
+  const gridH    = rows * cellStep - cellGap;
+  const symW     = Math.max(12, 18 * zoom);
+  const totalW   = gridW + symW + gridW;
+  const gap      = Math.max(8, 11 * zoom);
+  const topY     = cy - boxH / 2 - gap - gridH;
+  const aX       = cx - totalW / 2;
+  const bX       = aX + gridW + symW;
+  const op       = layer.op || '/';
+  const factor   = layer.factor !== undefined ? String(layer.factor) : '1';
+
+  // Input matrix
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = aX + c * cellStep, py = topY + r * cellStep;
+      const v = hashF(r * 17 + layer.id, c * 31 + layer.id);
+      const intensity = 0.2 + v * 0.3;
+      nodeCtx.fillStyle   = `rgba(${colorRgb}, ${intensity * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.4 * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+    }
+  }
+
+  // Output matrix (brightness pulsed to show scaling effect)
+  const scaleMult = op === '*' ? (0.5 + pulse * 1.0) : (1.5 - pulse * 0.8);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const px = bX + c * cellStep, py = topY + r * cellStep;
+      const v = hashF(r * 17 + layer.id, c * 31 + layer.id);
+      const intensity = Math.min(0.85, (0.2 + v * 0.3) * scaleMult);
+      nodeCtx.fillStyle   = `rgba(${colorRgb}, ${intensity * flicker})`; nodeCtx.fillRect(px, py, cellSize, cellSize);
+      nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.55 * flicker})`; nodeCtx.lineWidth = 0.5; nodeCtx.strokeRect(px, py, cellSize, cellSize);
+    }
+  }
+
+  // Symbol + factor in middle
+  const fontSize = Math.max(8, 11 * zoom);
+  nodeCtx.font = `bold ${fontSize}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'middle';
+  const midY = topY + gridH / 2;
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.9 * flicker})`;
+  const sym = op === '/' ? '÷' : '×';
+  nodeCtx.fillText(`${sym}${factor}`, aX + gridW + symW / 2, midY);
+
+  nodeCtx.restore();
+}
+
 function drawBmmHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
@@ -1105,6 +1170,7 @@ function draw() {
     if (l.type === 'softmax'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawSoftmaxHologram(l, sx, sy, white);
     if (l.type === 'add'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawAddHologram(l, sx, sy, white);
     if (l.type === 'bmm'       && isConnected && !isHologramBlocked(l) && !inSuperbox) drawBmmHologram(l, sx, sy, white);
+    if (l.type === 'scale'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawScaleHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 

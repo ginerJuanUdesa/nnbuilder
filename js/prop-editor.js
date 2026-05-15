@@ -317,6 +317,23 @@ function openPropEditor(layer) {
       });
       setTimeout(() => dimInp.focus(), 50);
     }
+  } else if (layer.type === 'scale') {
+    peTitle.textContent = 'SCALE';
+    if (layer.op     === undefined) layer.op     = '/';
+    if (layer.factor === undefined) layer.factor = '1';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label">OP</span>
+        <select class="pe-input" id="pe-scale-op" style="background:rgba(0,20,40,0.8);color:#44ffcc;border:1px solid rgba(68,255,204,0.3);border-radius:3px;padding:4px 8px;font-size:13px;cursor:pointer;outline:none;">
+          <option value="/" ${layer.op === '/' ? 'selected' : ''}>÷ divide</option>
+          <option value="*" ${layer.op === '*' ? 'selected' : ''}>× multiply</option>
+        </select>
+      </div>
+      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">FACTOR</span><input class="pe-input" type="text" value="${layer.factor}" id="pe-scale-factor" placeholder="e.g. sqrt(dk)"></div>
+      <div class="pe-hint">x ${layer.op === '/' ? '÷' : '×'} factor  (shape unchanged)</div>`;
+    peBody.querySelector('#pe-scale-op').addEventListener('change', e => { layer.op = e.target.value; saveState(); nodesDirty = true; });
+    peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
+    setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
+
   } else if (layer.type === 'bmm') {
     peTitle.textContent = 'BATCH MATMUL';
     const inc = connections.filter(c => c.to === layer.id);
