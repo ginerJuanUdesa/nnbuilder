@@ -4,6 +4,28 @@ function renderVarsPanel() {
   variables.forEach((v, i) => {
     const row = document.createElement('div'); row.className = 'var-row';
 
+    /* ── Batch size variable B — pinned, locked name ── */
+    if (v._batch) {
+      row.className = 'var-row var-row-batch';
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'var-name var-name-locked';
+      nameSpan.textContent = 'B';
+      const eq = document.createElement('span'); eq.className = 'var-eq'; eq.textContent = '=';
+      const valInp = document.createElement('input');
+      valInp.className = 'var-val'; valInp.type = 'text';
+      valInp.value = v.value || '32'; valInp.placeholder = '32';
+      valInp.addEventListener('change', () => {
+        variables[i].value = valInp.value.trim();
+        variables[i].formula = '';
+        saveState(); renderVarsPanel();
+      });
+      const badge = document.createElement('span');
+      badge.className = 'var-batch-badge'; badge.textContent = 'BATCH';
+      row.appendChild(nameSpan); row.appendChild(eq); row.appendChild(valInp); row.appendChild(badge);
+      list.appendChild(row);
+      return;
+    }
+
     const nameInp = document.createElement('input');
     nameInp.className = 'var-name'; nameInp.value = v.name; nameInp.placeholder = 'name';
     nameInp.addEventListener('change', () => { variables[i].name = nameInp.value.trim(); saveState(); renderVarsPanel(); });

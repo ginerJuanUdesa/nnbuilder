@@ -17,6 +17,7 @@ function _applySnap(raw) {
   variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
   superboxes.length  = 0; (data.superboxes  || []).forEach(s => superboxes.push(s));
   nextId     = data.nextId || 1;
+  ensureBatchVar();
   nodesDirty = true;
   gridDirty  = true;
 }
@@ -84,7 +85,8 @@ function loadState() {
       camY   = data.camY  || 0;
       zoom   = data.zoom  || 1;
     }
-  } catch (e) {}
+    ensureBatchVar();
+  } catch (e) { ensureBatchVar(); }
   _prevSnap = _snap(); // baseline so first action pushes correctly
 }
 
@@ -142,6 +144,7 @@ function importFromFile() {
         superboxes.length  = 0; (data.superboxes  || []).forEach(s => superboxes.push(s));
         nextId = data.nextId || 1;
         if (data.camera) { camX = data.camera.x || 0; camY = data.camera.y || 0; zoom = data.camera.zoom || 1; }
+        ensureBatchVar();
         _prevSnap  = _snap();
         nodesDirty = true;
         gridDirty  = true;

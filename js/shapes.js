@@ -3,7 +3,7 @@ let shapeCache = {};
 
 /* Simple per-layer shape (no graph traversal) — used as fallback */
 function getLayerShape(layer) {
-  if (layer.type === 'input')  return layer.dims || [1];
+  if (layer.type === 'input')  return ['B', ...(layer.dims || [1])];
   if (layer.type === 'linear') return [layer.units || 128];
   return null;
 }
@@ -17,21 +17,22 @@ function computeOutputShapes() {
     const layer = layers.find(l => l.id === layerId);
     if (!layer) return null;
 
-    /* INPUT: shape = dims (resolved) */
+    /* INPUT: shape = [B, ...dims] — batch size B always prepended as dim 0 */
     if (layer.type === 'input') {
-      shapeCache[layerId] = layer.dims ? layer.dims.map(resolveVal) : [1];
+      const batchSize = resolveVal('B');
+      shapeCache[layerId] = [batchSize, ...(layer.dims ? layer.dims.map(resolveVal) : [1])];
       return shapeCache[layerId];
     }
 
-    /* FLATTEN: PyTorch nn.Flatten semantics (batch-less: dim 0 here = PyTorch dim 1)
-       default start_dim=0, end_dim=-1 → flatten all dims */
+    /* FLATTEN: PyTorch nn.Flatten semantics — default start_dim=1 preserves batch at dim 0.
+       end_dim=-1 → flatten all dims from start_dim onward */
     if (layer.type === 'flatten') {
       const incoming = connections.filter(c => c.to === layerId);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape) { shapeCache[layerId] = null; return null; }
       const n  = srcShape.length;
-      const sd = layer.start_dim !== undefined ? layer.start_dim : 0;
+      const sd = layer.start_dim !== undefined ? layer.start_dim : 1; // default 1: preserve batch dim 0
       const ed = layer.end_dim   !== undefined ? layer.end_dim   : -1;
       const s  = Math.max(0, Math.min(sd < 0 ? n + sd : sd, n - 1));
       const e  = Math.max(s,  Math.min(ed < 0 ? n + ed : ed, n - 1));

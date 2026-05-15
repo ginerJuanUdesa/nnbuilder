@@ -25,6 +25,12 @@ function openPropEditor(layer) {
 
     function renderDims() {
       dimsContainer.innerHTML = '';
+      // Locked batch dim D0 = B
+      const bRow = document.createElement('div'); bRow.className = 'pe-dim-row pe-dim-row-batch';
+      const bLabel = document.createElement('span'); bLabel.className = 'pe-dim-label'; bLabel.textContent = 'D0';
+      const bVal   = document.createElement('span'); bVal.className = 'pe-input pe-input-locked'; bVal.textContent = 'B  (batch)';
+      bRow.appendChild(bLabel); bRow.appendChild(bVal); dimsContainer.appendChild(bRow);
+      // User dims (D1, D2, …)
       layer.dims.forEach((d, i) => {
         const row   = document.createElement('div'); row.className = 'pe-dim-row';
         const label = document.createElement('span'); label.className = 'pe-dim-label'; label.textContent = `D${i + 1}`;

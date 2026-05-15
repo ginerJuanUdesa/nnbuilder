@@ -68,6 +68,21 @@ function resolveVal(v) {
   return isNaN(n) ? 1 : Math.max(1, n);
 }
 
+/* Ensure the batch-size variable B is always first in variables[].
+   Called after every state load/restore so it can never be missing. */
+function ensureBatchVar() {
+  let bIdx = variables.findIndex(v => v._batch);
+  if (bIdx === -1) {
+    variables.unshift({ name: 'B', value: '32', _batch: true });
+  } else {
+    if (bIdx !== 0) {
+      const bv = variables.splice(bIdx, 1)[0];
+      variables.unshift(bv);
+    }
+    variables[0].name = 'B'; // name is fixed
+  }
+}
+
 /* getDisplayShape — like shapeCache but preserves variable names in dims.
    Traces raw layer props instead of resolved numbers where possible. */
 function getDisplayShape(layerId) {
@@ -77,7 +92,7 @@ function getDisplayShape(layerId) {
   if (!resolved) return null;
 
   if (layer.type === 'input') {
-    return (layer.dims || []).map(d => d); // already raw (var names intact)
+    return ['B', ...(layer.dims || []).map(d => d)]; // B always prepended as dim 0
   }
   if (layer.type === 'linear' || layer.type === 'shared_dense') {
     const inc = connections.filter(c => c.to === layerId);
