@@ -258,6 +258,15 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* RMSNORM: torch.nn.RMSNorm — normalizes each vector by its RMS, shape passthrough */
+    if (layer.type === 'rmsnorm') {
+      const incoming = connections.filter(c => c.to === layerId);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[incoming.length - 1].from);
+      shapeCache[layerId] = srcShape ? [...srcShape] : null;
+      return shapeCache[layerId];
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);
@@ -335,6 +344,19 @@ function computeOutputShapes() {
         c.paramLabelTop = `2×${ns}=${(2 * ns).toLocaleString()}`;
         totalParams    += c.paramCount;
       } else { c.paramCount = 0; c.paramLabel = 'shared LN'; c.paramLabelTop = ''; }
+    } else if (toLayer.type === 'rmsnorm' && toLayer.elementwise_affine !== false) {
+      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const isFirst = allIncoming[0] === c;
+      if (isFirst) {
+        const rawNS = toLayer.normalized_shape;
+        const ns    = rawNS !== undefined
+          ? (Array.isArray(rawNS) ? rawNS.map(v => resolveVal(v)).reduce((a, b) => a * b, 1) : resolveVal(rawNS))
+          : (fromShape[fromShape.length - 1] || 1);
+        c.paramCount    = ns;   // only weight, no bias
+        c.paramLabel    = `w[${ns}]`;
+        c.paramLabelTop = `${ns.toLocaleString()}`;
+        totalParams    += c.paramCount;
+      } else { c.paramCount = 0; c.paramLabel = 'shared RMS'; c.paramLabelTop = ''; }
     } else {
       c.paramCount = 0; c.paramLabel = ''; c.paramLabelTop = '';
     }

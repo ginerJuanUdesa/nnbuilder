@@ -666,15 +666,21 @@ function pasteSuperbox() {
     layers.push(newL);
   }
 
-  // Paste internal connections
+  // Paste internal connections (offset elbowX by the same dx as layers/SBs)
   for (const c of pConns) {
-    connections.push({ ...JSON.parse(JSON.stringify(c)),
+    const nc = { ...JSON.parse(JSON.stringify(c)),
       from: layerIdMap[c.from],
       to:   layerIdMap[c.to],
-    });
+    };
+    if (nc.elbowX !== undefined) nc.elbowX += dx;
+    connections.push(nc);
   }
 
-  if (typeof syncAll === 'function') syncAll(); // re-bind pasted layers to pasted SBs
+  // Do NOT call syncAll() — pasted SBs already have correct parentId (from
+  // sbIdMap remap) and layerIds (from layerIdMap remap). syncSbParentIds()
+  // would reassign parentIds by spatial containment and merge the pasted
+  // hierarchy into the original when paste lands nearby.
+  nodesDirty = true;
   selectedSuperboxId = pastedRootSbId;
   selectedLayerId = null;
   saveState();

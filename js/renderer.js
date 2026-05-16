@@ -139,6 +139,7 @@ function drawLayerBox(layer, cx, cy) {
       scale:     'rgba(200, 245, 238, 0.97)',
       transpose:  'rgba(225, 215, 255, 0.97)',
       layernorm:  'rgba(210, 245, 230, 0.97)',
+      rmsnorm:  'rgba(200, 235, 252, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -384,6 +385,16 @@ function drawLayerBox(layer, cx, cy) {
         const rawNS = layer.normalized_shape;
         const nsStr = (rawNS !== undefined && rawNS !== '') ? String(rawNS) : 'last dim';
         const text  = `LN(${nsStr})`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.fillText(text, cx, baseY);
+
+      } else if (layer.type === 'rmsnorm') {
+        const rawNS = layer.normalized_shape;
+        const nsStr = (rawNS !== undefined && rawNS !== '') ? String(rawNS) : 'last dim';
+        const text  = `RMS(${nsStr})`;
         const shift = shiftFor(countLines(text, boxHalfW * 2));
         drawTitle(shift);
         const baseY = baseY0 - shift;
@@ -1193,6 +1204,74 @@ function drawTransposeHologram(layer, cx, cy, white) {
 }
 
 
+function drawRMSNormHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '3, 105, 161' : '56, 189, 248';
+  const boxH     = layerTypes.rmsnorm.h * zoom;
+  const flicker  = 0.84 + Math.sin(time * 2.6 + layer.id * 1.4) * 0.09 + Math.sin(time * 6.5 + layer.id * 0.8) * 0.04;
+  const gap      = Math.max(8, 11 * zoom);
+  const barW     = Math.max(3, 4.5 * zoom);
+  const barGap   = Math.max(1.5, 2 * zoom);
+  const nBars    = 5;
+  const rawHeights = [0.45, 0.85, 0.60, 1.0, 0.30]; // arbitrary "raw" vector
+  const totalBarW  = nBars * barW + (nBars - 1) * barGap;
+  const maxBarH    = Math.max(18, 26 * zoom);
+  const arrowGap   = Math.max(7, 10 * zoom);
+  const arrowLen   = Math.max(8, 12 * zoom);
+  const totalW     = totalBarW * 2 + arrowLen + arrowGap * 2;
+  const lx0        = cx - totalW / 2;   // left group left edge
+  const rx0        = lx0 + totalBarW + arrowLen + arrowGap * 2; // right group left edge
+  const baseY      = cy - boxH / 2 - gap;
+
+  // Pulse: animate each bar on the right (normalized) to uniform height with flicker
+  const rms = Math.sqrt(rawHeights.reduce((s, v) => s + v * v, 0) / rawHeights.length);
+  const normHeights = rawHeights.map(v => v / rms * 0.65); // ~uniform after RMS norm
+
+  // LEFT: raw bars (varying heights)
+  for (let i = 0; i < nBars; i++) {
+    const bx = lx0 + i * (barW + barGap);
+    const bh = rawHeights[i] * maxBarH;
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.35 * flicker})`;
+    nodeCtx.fillRect(bx, baseY - bh, barW, bh);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.65 * flicker})`;
+    nodeCtx.lineWidth = Math.max(0.5, 0.8 * zoom);
+    nodeCtx.strokeRect(bx, baseY - bh, barW, bh);
+  }
+
+  // Arrow →
+  const ax = lx0 + totalBarW + arrowGap;
+  const ay = baseY - maxBarH * 0.5;
+  const ar = Math.max(3, 3.5 * zoom);
+  nodeCtx.beginPath();
+  nodeCtx.moveTo(ax, ay); nodeCtx.lineTo(ax + arrowLen, ay);
+  nodeCtx.moveTo(ax + arrowLen, ay); nodeCtx.lineTo(ax + arrowLen - ar, ay - ar * 0.55);
+  nodeCtx.moveTo(ax + arrowLen, ay); nodeCtx.lineTo(ax + arrowLen - ar, ay + ar * 0.55);
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.55 * flicker})`;
+  nodeCtx.lineWidth = Math.max(1, 1.3 * zoom); nodeCtx.stroke();
+
+  // RIGHT: normalized bars (all ~same height, pulsing slightly)
+  const normPulse = 0.9 + 0.1 * Math.sin(time * 4.0 + layer.id * 1.1);
+  for (let i = 0; i < nBars; i++) {
+    const bx = rx0 + i * (barW + barGap);
+    const bh = normHeights[i] * maxBarH * normPulse;
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.45 * flicker})`;
+    nodeCtx.fillRect(bx, baseY - bh, barW, bh);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.9 * flicker})`;
+    nodeCtx.lineWidth = Math.max(0.5, 0.8 * zoom);
+    nodeCtx.strokeRect(bx, baseY - bh, barW, bh);
+  }
+
+  // "÷RMS" label
+  const fs = Math.max(6, 8 * zoom);
+  nodeCtx.font = `${fs}px Courier New`; nodeCtx.textAlign = 'center'; nodeCtx.textBaseline = 'bottom';
+  nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.65 * flicker})`;
+  nodeCtx.fillText('÷RMS', cx, baseY - maxBarH - Math.max(2, 3 * zoom));
+
+  nodeCtx.restore();
+}
+
 function drawLayerNormHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
@@ -1531,6 +1610,7 @@ function draw() {
     if (l.type === 'scale'     && isConnected && !isHologramBlocked(l) && !inSuperbox) drawScaleHologram(l, sx, sy, white);
     if (l.type === 'transpose' && isConnected && !isHologramBlocked(l) && !inSuperbox) drawTransposeHologram(l, sx, sy, white);
     if (l.type === 'layernorm' && isConnected && !isHologramBlocked(l) && !inSuperbox) drawLayerNormHologram(l, sx, sy, white);
+    if (l.type === 'rmsnorm'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawRMSNormHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 

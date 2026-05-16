@@ -384,6 +384,45 @@ function openPropEditor(layer) {
     });
     setTimeout(() => peBody.querySelector('#pe-ln-ns').focus(), 50);
 
+  } else if (layer.type === 'rmsnorm') {
+    peTitle.textContent = 'RMS NORM';
+    if (layer.normalized_shape   === undefined) layer.normalized_shape   = '';
+    if (layer.eps                === undefined) layer.eps                = '1e-8';
+    if (layer.elementwise_affine === undefined) layer.elementwise_affine = true;
+
+    const _inc = connections.filter(c => c.to === layer.id);
+    const _src = _inc.length > 0 ? shapeCache[_inc[_inc.length - 1].from] : null;
+    const _lastDim = _src ? _src[_src.length - 1] : '';
+    const _nsPlaceholder = _lastDim !== '' ? String(_lastDim) : '64';
+
+    peBody.innerHTML = `
+      <div class="pe-row">
+        <span class="pe-label">NORM SHAPE</span>
+        <input class="pe-input" type="text" id="pe-rms-ns" value="${layer.normalized_shape}" placeholder="${_nsPlaceholder}">
+      </div>
+      <div class="pe-row">
+        <span class="pe-label">EPS</span>
+        <input class="pe-input" type="text" id="pe-rms-eps" value="${layer.eps}" style="width:80px">
+      </div>
+      <div class="pe-row">
+        <span class="pe-label">AFFINE</span>
+        <input type="checkbox" id="pe-rms-aff" ${layer.elementwise_affine ? 'checked' : ''} style="accent-color:var(--pe-color);width:16px;height:16px">
+      </div>
+      <div class="pe-hint">nn.RMSNorm — x÷RMS(x)×w, weight only (no bias), shape passthrough</div>`;
+
+    peBody.querySelector('#pe-rms-ns').addEventListener('change', e => {
+      const raw = e.target.value.trim();
+      layer.normalized_shape = raw === '' ? '' : (isNaN(raw) ? raw : parseInt(raw));
+      saveState();
+    });
+    peBody.querySelector('#pe-rms-eps').addEventListener('change', e => {
+      layer.eps = e.target.value.trim() || '1e-8'; saveState();
+    });
+    peBody.querySelector('#pe-rms-aff').addEventListener('change', e => {
+      layer.elementwise_affine = e.target.checked; saveState();
+    });
+    setTimeout(() => peBody.querySelector('#pe-rms-ns').focus(), 50);
+
   } else if (layer.type === 'scale') {
     peTitle.textContent = 'SCALE';
     if (layer.op     === undefined) layer.op     = '/';

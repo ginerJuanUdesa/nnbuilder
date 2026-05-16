@@ -140,6 +140,14 @@ body.white-mode .palette-item.type-transpose .name { color: #6644cc; }
 .palette-item.type-scale     .name { color: #44ffcc; }
 body.white-mode .palette-item.type-scale     { border-color: rgba(0, 153, 136, 0.4); }
 body.white-mode .palette-item.type-scale     .name { color: #009988; }
+.palette-item.type-layernorm { border-color: rgba(52, 211, 153, 0.4); }
+.palette-item.type-layernorm .name { color: #34d399; }
+body.white-mode .palette-item.type-layernorm { border-color: rgba(10, 122, 80, 0.4); }
+body.white-mode .palette-item.type-layernorm .name { color: #0a7a50; }
+.palette-item.type-rmsnorm  { border-color: rgba(56, 189, 248, 0.4); }
+.palette-item.type-rmsnorm  .name { color: #38bdf8; }
+body.white-mode .palette-item.type-rmsnorm  { border-color: rgba(3, 105, 161, 0.4); }
+body.white-mode .palette-item.type-rmsnorm  .name { color: #0369a1; }
 
 #hud {
   position: fixed; top: 14px; left: 256px;
