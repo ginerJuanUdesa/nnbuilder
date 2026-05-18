@@ -86,6 +86,16 @@ function ensureBatchVar() {
 /* getDisplayShape — like shapeCache but preserves variable names in dims.
    Traces raw layer props instead of resolved numbers where possible. */
 function getDisplayShape(layerId) {
+  // Per-frame memo: getDisplayShape recurses upstream; without caching, drawing
+  // each layer re-walks the whole chain → O(D^2*(n+m)) per frame. _dispCache is
+  // cleared in computeOutputShapes (same lifecycle as shapeCache).
+  if (layerId in _dispCache) return _dispCache[layerId];
+  _dispCache[layerId] = null; // cycle sentinel: break self/mutual recursion
+  const _r = _computeDisplayShape(layerId);
+  _dispCache[layerId] = _r;
+  return _r;
+}
+function _computeDisplayShape(layerId) {
   const layer = layers.find(l => l.id === layerId);
   if (!layer) return null;
   const resolved = shapeCache[layerId];
@@ -95,14 +105,14 @@ function getDisplayShape(layerId) {
     return ['BATCH', ...(layer.dims || []).map(d => d)]; // BATCH always prepended as dim 0
   }
   if (layer.type === 'linear' || layer.type === 'shared_dense') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
     const leading = srcDisp ? srcDisp.slice(0, -1) : resolved.slice(0, -1);
     const last = layer.units !== undefined ? layer.units : resolved[resolved.length - 1];
     return [...leading, last];
   }
   if (layer.type === 'unsqueeze') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
     if (!srcDisp) return resolved;
     const dim = layer.dim !== undefined ? resolveVal(layer.dim) : 0;
@@ -112,7 +122,7 @@ function getDisplayShape(layerId) {
     return out;
   }
   if (layer.type === 'squeeze') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
     if (!srcDisp) return resolved;
     const rawDim = layer.dim !== undefined && layer.dim !== null && layer.dim !== '' ? resolveVal(layer.dim) : null;
@@ -128,23 +138,23 @@ function getDisplayShape(layerId) {
     return out.length > 0 ? out : [1];
   }
   if (layer.type === 'softmax') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
   }
   if (layer.type === 'layernorm') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
   }
   if (layer.type === 'rmsnorm') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
   }
   if (layer.type === 'scale') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
   }
   if (layer.type === 'transpose') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     if (inc.length === 0) return resolved;
     const srcDisp = getDisplayShape(inc[0].from);
     if (!srcDisp) return resolved;
@@ -159,7 +169,7 @@ function getDisplayShape(layerId) {
     return out;
   }
   if (layer.type === 'add') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     if (inc.length === 0) return resolved;
     const dispShapes = inc.map(c => getDisplayShape(c.from)).filter(Boolean);
     if (dispShapes.length === 0) return resolved;
@@ -177,7 +187,7 @@ function getDisplayShape(layerId) {
     return compatible ? out : resolved;
   }
   if (layer.type === 'matmul') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     if (inc.length < 2) return resolved;
     const dispA = getDisplayShape(inc[0].from);
     const dispB = getDisplayShape(inc[1].from);
@@ -193,7 +203,7 @@ function getDisplayShape(layerId) {
     return [...batchOut, n, p];
   }
   if (layer.type === 'output') {
-    const inc = connections.filter(c => c.to === layerId);
+    const inc = (_connByTo.get(layerId) || []);
     return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
   }
   return resolved; // flatten, mean, conv — fall back to resolved

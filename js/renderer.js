@@ -223,7 +223,7 @@ function drawLayerBox(layer, cx, cy) {
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'linear') {
-        const inc      = connections.filter(c => c.to === layer.id);
+        const inc      = (_connByTo.get(layer.id) || []);
         const srcDisp  = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
         const inF      = srcDisp ? srcDisp[srcDisp.length - 1] : '?';
         const prefix   = inc.length > 1 ? `${inc.length}× ` : '';
@@ -237,7 +237,7 @@ function drawLayerBox(layer, cx, cy) {
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'shared_dense') {
-        const inc = connections.filter(c => c.to === layer.id);
+        const inc = (_connByTo.get(layer.id) || []);
         const inF = inc.length > 0 ? getLayerOutputLabel(inc[0].from) : '?';
         const text = `${inc.length}×[${inF}→${layer.units || '?'}]`;
         const shift = shiftFor(countLines(text, boxHalfW * 2));
@@ -290,7 +290,7 @@ function drawLayerBox(layer, cx, cy) {
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'add') {
-        const inc = connections.filter(cc => cc.to === layer.id);
+        const inc = (_connByTo.get(layer.id) || []);
         const outShape = shapeCache[layer.id];
         const dispShape = outShape ? getDisplayShape(layer.id) : null;
         const status = inc.length === 0 ? 'no inputs'
@@ -341,7 +341,7 @@ function drawLayerBox(layer, cx, cy) {
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'matmul') {
-        const inc = connections.filter(cc => cc.to === layer.id);
+        const inc = (_connByTo.get(layer.id) || []);
         const shA = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
         const shB = inc.length > 1 ? getDisplayShape(inc[1].from) : null;
         const fmtS = s => s ? `[${s.join(', ')}]` : '?';
@@ -445,8 +445,8 @@ function drawLayerBox(layer, cx, cy) {
 
   // connection count badges
   if (zoom > 0.25) {
-    const inCount   = connections.filter(c => c.to   === layer.id).length;
-    const outCount  = connections.filter(c => c.from === layer.id).length;
+    const inCount   = (_connByTo.get(layer.id) || []).length;
+    const outCount  = (_connByFrom.get(layer.id) || []).length;
     const badgeSize = Math.max(8, 12 * zoom);
     const badgeY    = y - badgeSize / 2 - 4;
     if (inCount > 1) {

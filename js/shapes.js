@@ -1,5 +1,8 @@
 /* Shape propagation engine — mirrors PyTorch semantics */
 let shapeCache = {};
+let _dispCache = {}; // per-frame memo for getDisplayShape (cleared with shapeCache)
+let _connByTo = new Map(); // c.to -> [conns], rebuilt when graph changes
+let _connByFrom = new Map(); // c.from -> [conns], rebuilt when graph changes
 
 /* Simple per-layer shape (no graph traversal) — used as fallback */
 function getLayerShape(layer) {
@@ -14,6 +17,15 @@ function computeOutputShapes() {
   if (!_shapesDirty) return; // shapes already up-to-date
   _shapesDirty = false;
   shapeCache = {};
+  _dispCache  = {};
+  _connByTo   = new Map();
+  _connByFrom = new Map();
+  for (const c of connections) {
+    if (!_connByTo.has(c.to)) _connByTo.set(c.to, []);
+    _connByTo.get(c.to).push(c);
+    if (!_connByFrom.has(c.from)) _connByFrom.set(c.from, []);
+    _connByFrom.get(c.from).push(c);
+  }
 
   function resolveShape(layerId) {
     if (shapeCache[layerId] !== undefined) return shapeCache[layerId];
