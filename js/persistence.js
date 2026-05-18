@@ -39,6 +39,8 @@ function saveState() {
   }
   _prevSnap  = _snap();
   nodesDirty = true;
+  _hasAnimatedDirty = true;
+  _shapesDirty = true;
   _persistLocal();
 }
 

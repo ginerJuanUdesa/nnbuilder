@@ -9,7 +9,10 @@ function getLayerShape(layer) {
 }
 
 /* Full graph-aware shape propagation. Called every frame before draw. */
+let _shapesDirty = true; // mark dirty when graph changes; cleared after compute
 function computeOutputShapes() {
+  if (!_shapesDirty) return; // shapes already up-to-date
+  _shapesDirty = false;
   shapeCache = {};
 
   function resolveShape(layerId) {

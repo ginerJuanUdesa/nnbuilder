@@ -90,3 +90,13 @@ let groupDragging          = false;
 let groupDragLayers        = [];
 let groupDragOffX          = 0, groupDragOffY = 0;
 let groupDragAnchorOrigX   = 0, groupDragAnchorOrigY = 0;
+let groupDragSbs           = [];
+
+/* hasAnimated cache */
+let _hasAnimatedCache = false;
+let _hasAnimatedDirty = true;
+
+/* FPS counter */
+let _fpsEMA     = 0;
+let _fpsLastTs  = 0;
+let _fpsLastDom = 0;

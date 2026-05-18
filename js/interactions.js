@@ -99,7 +99,7 @@ window.addEventListener('mousedown', e => {
       else selectedLayerIds.add(hit.id);
       nodesDirty = true; return;
     }
-    if (selectedLayerIds.size > 1 && selectedLayerIds.has(hit.id)) {
+    if (selectedLayerIds.size >= 1 && selectedLayerIds.has(hit.id)) {
       // Start group drag
       groupDragging = true;
       groupDragOffX = wx - hit.x; groupDragOffY = wy - hit.y;
@@ -108,6 +108,22 @@ window.addEventListener('mousedown', e => {
         const l = layers.find(x => x.id === id);
         return l ? { id, origX: l.x, origY: l.y } : null;
       }).filter(Boolean);
+      // Fixpoint: collect fully-selected superboxes
+      const _gdSbIds = new Set();
+      let _gdChanged = true;
+      while (_gdChanged) {
+        _gdChanged = false;
+        for (const sb of superboxes) {
+          if (_gdSbIds.has(sb.id)) continue;
+          const directLayers = sb.layerIds.filter(id => layers.some(l => l.id === id));
+          const childSbs     = superboxes.filter(c => c.parentId === sb.id);
+          const hasContent   = directLayers.length > 0 || childSbs.length > 0;
+          const layersOk     = directLayers.every(id => selectedLayerIds.has(id));
+          const childrenOk   = childSbs.every(c => _gdSbIds.has(c.id));
+          if (hasContent && layersOk && childrenOk) { _gdSbIds.add(sb.id); _gdChanged = true; }
+        }
+      }
+      groupDragSbs = superboxes.filter(s => _gdSbIds.has(s.id)).map(s => ({ id: s.id, origX: s.x, origY: s.y }));
       document.body.style.cursor = 'move';
       return;
     }
@@ -124,6 +140,8 @@ window.addEventListener('mousedown', e => {
   // ── try connection hit ──
   const connHit = hitTestConnection(e.clientX, e.clientY, 8);
   if (connHit !== -1) {
+    const _chc = connections[connHit];
+    if (selectedLayerIds.has(_chc.from) || selectedLayerIds.has(_chc.to)) return;
     selectedConnIdx = connHit; selectedLayerId = null; closePropEditor();
     connDragIdx      = connHit;
     connDragStartSX  = e.clientX;
@@ -154,6 +172,23 @@ window.addEventListener('mousedown', e => {
   const sbEdgeHit = hitTestSuperboxEdge(wx, wy);
   if (sbEdgeHit !== null) {
     const sb = superboxes[sbEdgeHit.idx];
+    // Block resize when SB is fully selected (group drag mode)
+    if (selectedLayerIds.size > 0) {
+      const _rSbIds = new Set();
+      let _rCh = true;
+      while (_rCh) {
+        _rCh = false;
+        for (const s of superboxes) {
+          if (_rSbIds.has(s.id)) continue;
+          const dl = s.layerIds.filter(id => layers.some(l => l.id === id));
+          const cs = superboxes.filter(c => c.parentId === s.id);
+          if ((dl.length > 0 || cs.length > 0) &&
+              dl.every(id => selectedLayerIds.has(id)) &&
+              cs.every(c => _rSbIds.has(c.id))) { _rSbIds.add(s.id); _rCh = true; }
+        }
+      }
+      if (_rSbIds.has(sb.id)) return;
+    }
     selectedSuperboxId = sb.id;
     selectedLayerId = null; selectedConnIdx = -1;
     sbResizing = true; sbResizeId = sb.id; sbResizeEdge = sbEdgeHit.edge;
@@ -170,6 +205,34 @@ window.addEventListener('mousedown', e => {
     const sb = superboxes[sbIdx];
     selectedSuperboxId = sb.id;
     selectedLayerId = null; selectedConnIdx = -1;
+    // If this SB is fully selected, join group drag so all selected items move together
+    if (selectedLayerIds.size > 0) {
+      const _gdSbIds = new Set();
+      let _gdCh = true;
+      while (_gdCh) {
+        _gdCh = false;
+        for (const s of superboxes) {
+          if (_gdSbIds.has(s.id)) continue;
+          const dl = s.layerIds.filter(id => layers.some(l => l.id === id));
+          const cs = superboxes.filter(c => c.parentId === s.id);
+          if ((dl.length > 0 || cs.length > 0) &&
+              dl.every(id => selectedLayerIds.has(id)) &&
+              cs.every(c => _gdSbIds.has(c.id))) { _gdSbIds.add(s.id); _gdCh = true; }
+        }
+      }
+      if (_gdSbIds.has(sb.id)) {
+        groupDragging = true;
+        groupDragOffX = wx - sb.x; groupDragOffY = wy - sb.y;
+        groupDragAnchorOrigX = sb.x; groupDragAnchorOrigY = sb.y;
+        groupDragLayers = [...selectedLayerIds].map(id => {
+          const l = layers.find(x => x.id === id);
+          return l ? { id, origX: l.x, origY: l.y } : null;
+        }).filter(Boolean);
+        groupDragSbs = superboxes.filter(s => _gdSbIds.has(s.id)).map(s => ({ id: s.id, origX: s.x, origY: s.y }));
+        document.body.style.cursor = 'move';
+        return;
+      }
+    }
     sbDragging = true; sbDragId = sb.id;
     sbDragOffX = wx - sb.x; sbDragOffY = wy - sb.y;
     document.body.style.cursor = 'move';
@@ -188,6 +251,21 @@ window.addEventListener('mousedown', e => {
 window.addEventListener('mousemove', e => {
   lastMouseSX = e.clientX; lastMouseSY = e.clientY;
   if (paletteDragType) { drawGhost(e.clientX, e.clientY); gridDirty = true; return; }
+
+  // If mouse button was released outside the window, cancel any stuck drag
+  // states. Do NOT return — connection-mode aiming and hover cursor updates
+  // happen on buttonless mousemove and must still run below.
+  if (e.buttons === 0 && (groupDragging || layerDragging || sbDragging ||
+                          sbResizing || connDragging || panDragging)) {
+    if (groupDragging) { groupDragging = false; groupDragLayers = []; groupDragSbs = []; nodesDirty = true; }
+    layerDragging = false; layerDragId = null;
+    sbDragging = false; sbDragId = null;
+    sbResizing = false; sbResizeId = null;
+    connDragging = false; connDragIdx = -1;
+    panDragging = false;
+    document.body.style.cursor = 'default';
+    // fall through to normal hover/preview handling
+  }
 
   if (drawMode && _sbDrawStart) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
@@ -216,6 +294,10 @@ window.addEventListener('mousemove', e => {
     for (const { id, origX, origY } of groupDragLayers) {
       const l = layers.find(x => x.id === id);
       if (l) { l.x = origX + ddx; l.y = origY + ddy; }
+    }
+    for (const { id, origX, origY } of groupDragSbs) {
+      const sb = superboxes.find(s => s.id === id);
+      if (sb) { sb.x = origX + ddx; sb.y = origY + ddy; }
     }
     const _curAX = _anchorL ? _anchorL.x : 0;
     const _frameDx = _curAX - _prevAX;
@@ -421,7 +503,11 @@ window.addEventListener('mouseup', e => {
         c.elbowX = snapToGrid(c.elbowX + snapDx);
       }
     });
-    groupDragging = false; groupDragLayers = [];
+    for (const { id } of groupDragSbs) {
+      const sb = superboxes.find(s => s.id === id);
+      if (sb) { sb.x = snapToGrid(sb.x); sb.y = snapToGrid(sb.y); }
+    }
+    groupDragging = false; groupDragLayers = []; groupDragSbs = [];
     document.body.style.cursor = 'default';
     saveState(); nodesDirty = true; return;
   }
