@@ -1108,39 +1108,42 @@ function drawSuperboxes(white) {
       // store hit area for interactions.js
       _sbEyeBtns.push({ sbId: sb.id, cx: eyeCX, cy: eyeCY, r: eyeR });
 
-      if (sb.name) {
+      // nested groups hide name+eye at zoom <= 0.1 (top-level groups always show)
+      if (!(sb.parentId && zoom <= 0.1)) {
+        if (sb.name) {
+          nodeCtx.save();
+          nodeCtx.globalAlpha = labelAlpha;
+          nodeCtx.fillStyle = color;
+          nodeCtx.textAlign = 'left';
+          nodeCtx.textBaseline = 'bottom';
+          nodeCtx.fillText(sb.name, labelX, labelY);
+          nodeCtx.restore();
+        }
+
+        // draw eye icon
+        const eyeVisible = sb.bgVisible !== false;
         nodeCtx.save();
-        nodeCtx.globalAlpha = labelAlpha;
-        nodeCtx.fillStyle = color;
-        nodeCtx.textAlign = 'left';
-        nodeCtx.textBaseline = 'bottom';
-        nodeCtx.fillText(sb.name, labelX, labelY);
+        nodeCtx.globalAlpha = labelAlpha * (eyeVisible ? 1 : 0.55);
+        nodeCtx.strokeStyle = color;
+        nodeCtx.fillStyle   = color;
+        nodeCtx.lineWidth   = Math.max(1, eyeR * 0.28);
+        // outer ellipse (eye whites)
+        nodeCtx.beginPath();
+        nodeCtx.ellipse(eyeCX, eyeCY, eyeR, eyeR * 0.6, 0, 0, Math.PI * 2);
+        nodeCtx.stroke();
+        // pupil
+        nodeCtx.beginPath();
+        nodeCtx.arc(eyeCX, eyeCY, eyeR * 0.3, 0, Math.PI * 2);
+        nodeCtx.fill();
+        if (!eyeVisible) {
+          // strikethrough
+          nodeCtx.beginPath();
+          nodeCtx.moveTo(eyeCX - eyeR * 0.85, eyeCY + eyeR * 0.55);
+          nodeCtx.lineTo(eyeCX + eyeR * 0.85, eyeCY - eyeR * 0.55);
+          nodeCtx.stroke();
+        }
         nodeCtx.restore();
       }
-
-      // draw eye icon
-      const eyeVisible = sb.bgVisible !== false;
-      nodeCtx.save();
-      nodeCtx.globalAlpha = labelAlpha * (eyeVisible ? 1 : 0.55);
-      nodeCtx.strokeStyle = color;
-      nodeCtx.fillStyle   = color;
-      nodeCtx.lineWidth   = Math.max(1, eyeR * 0.28);
-      // outer ellipse (eye whites)
-      nodeCtx.beginPath();
-      nodeCtx.ellipse(eyeCX, eyeCY, eyeR, eyeR * 0.6, 0, 0, Math.PI * 2);
-      nodeCtx.stroke();
-      // pupil
-      nodeCtx.beginPath();
-      nodeCtx.arc(eyeCX, eyeCY, eyeR * 0.3, 0, Math.PI * 2);
-      nodeCtx.fill();
-      if (!eyeVisible) {
-        // strikethrough
-        nodeCtx.beginPath();
-        nodeCtx.moveTo(eyeCX - eyeR * 0.85, eyeCY + eyeR * 0.55);
-        nodeCtx.lineTo(eyeCX + eyeR * 0.85, eyeCY - eyeR * 0.55);
-        nodeCtx.stroke();
-      }
-      nodeCtx.restore();
     }
   }
 
