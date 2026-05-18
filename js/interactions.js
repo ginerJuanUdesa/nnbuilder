@@ -910,8 +910,24 @@ window.addEventListener('keydown', e => {
     // Multi-select delete: highest priority
     if (selectedLayerIds.size > 0 && !propEditor.contains(document.activeElement)) {
       const toDelete = new Set(selectedLayerIds);
+      // Also delete fully-selected superboxes (same fixpoint as Ctrl+C)
+      const deleteSbIds = new Set();
+      let sbChanged = true;
+      while (sbChanged) {
+        sbChanged = false;
+        for (const sb of superboxes) {
+          if (deleteSbIds.has(sb.id)) continue;
+          const existingLayers = sb.layerIds.filter(id => layers.some(l => l.id === id));
+          const childSbs = superboxes.filter(c => c.parentId === sb.id);
+          const hasContent = existingLayers.length > 0 || childSbs.length > 0;
+          const layersOk = existingLayers.every(id => toDelete.has(id));
+          const childrenOk = childSbs.every(c => deleteSbIds.has(c.id));
+          if (hasContent && layersOk && childrenOk) { deleteSbIds.add(sb.id); sbChanged = true; }
+        }
+      }
       layers.splice(0, layers.length, ...layers.filter(l => !toDelete.has(l.id)));
       connections.splice(0, connections.length, ...connections.filter(c => !toDelete.has(c.from) && !toDelete.has(c.to)));
+      superboxes.splice(0, superboxes.length, ...superboxes.filter(sb => !deleteSbIds.has(sb.id)));
       superboxes.forEach(sb => { sb.layerIds = sb.layerIds.filter(id => !toDelete.has(id)); });
       selectedLayerIds.clear(); selectedLayerId = null;
       closePropEditor(); saveState(); return;
