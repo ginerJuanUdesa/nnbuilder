@@ -1044,6 +1044,17 @@ function drawSuperboxes(white) {
     const [sx, sy] = worldToScreen(sb.x, sb.y);
     const sw = sb.w * zoom, sh = sb.h * zoom;
     const isSelected = sb.id === selectedSuperboxId;
+    // Compute recursive "fully multi-selected" flag: all direct layers selected
+    // AND all child SBs also fully selected (recursively).
+    const _sbFullySel = (s) => {
+      if (typeof selectedLayerIds === 'undefined' || selectedLayerIds.size === 0) return false;
+      const existingLayers = s.layerIds.filter(id => layers.some(l => l.id === id));
+      const childSbs = superboxes.filter(c => c.parentId === s.id);
+      if (existingLayers.length === 0 && childSbs.length === 0) return false;
+      return existingLayers.every(id => selectedLayerIds.has(id)) &&
+             childSbs.every(c => _sbFullySel(c));
+    };
+    const isMultiSelected = _sbFullySel(sb);
 
     // fill (skipped when bgVisible === false)
     if (sb.bgVisible !== false) {
@@ -1063,6 +1074,20 @@ function drawSuperboxes(white) {
     nodeCtx.strokeRect(sx, sy, sw, sh);
     nodeCtx.setLineDash([]);
     nodeCtx.restore();
+
+    // multi-select highlight: pulsing blue border when fully selected
+    if (isMultiSelected) {
+      const _msPulse = 0.55 + 0.45 * Math.sin(time * 5.5 + sb.id * 0.9);
+      nodeCtx.save();
+      nodeCtx.strokeStyle = white
+        ? `rgba(3, 105, 161, ${_msPulse})`
+        : `rgba(56, 189, 248, ${_msPulse})`;
+      nodeCtx.lineWidth = 2.5;
+      nodeCtx.setLineDash([4, 3]);
+      nodeCtx.strokeRect(sx - 4, sy - 4, sw + 8, sh + 8);
+      nodeCtx.setLineDash([]);
+      nodeCtx.restore();
+    }
 
     // name label + eye button (top-left, indented by depth)
     {

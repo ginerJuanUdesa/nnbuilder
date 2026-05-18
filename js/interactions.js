@@ -826,7 +826,7 @@ window.addEventListener('keydown', e => {
         sbChanged = false;
         for (const sb of superboxes) {
           if (includedSbIds.has(sb.id)) continue;
-          const directLayers = sb.layerIds;
+          const directLayers = sb.layerIds.filter(id => layers.some(l => l.id === id));
           const childSbs     = superboxes.filter(c => c.parentId === sb.id);
           const hasContent   = directLayers.length > 0 || childSbs.length > 0;
           const layersOk     = directLayers.every(id => selectedLayerIds.has(id));
