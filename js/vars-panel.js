@@ -90,12 +90,12 @@ document.getElementById('load-file').addEventListener('click', importFromFile);
 
 /* ── Strip button: active-state sync helper ── */
 function syncStripButtons() {
-  const connBtn  = document.getElementById('connect-toggle');
-  const drawBtn  = document.getElementById('draw-toggle');
-  const eraseBtn = document.getElementById('erase-toggle');
-  if (connBtn)  connBtn.classList.toggle('active', !!connectionMode);
-  if (drawBtn)  drawBtn.classList.toggle('active', !!drawMode);
-  if (eraseBtn) eraseBtn.classList.toggle('active', !!eraseMode);
+  const connBtn   = document.getElementById('connect-toggle');
+  const drawBtn   = document.getElementById('draw-toggle');
+  const selectBtn = document.getElementById('select-toggle');
+  if (connBtn)   connBtn.classList.toggle('active', !!connectionMode);
+  if (drawBtn)   drawBtn.classList.toggle('active', !!drawMode);
+  if (selectBtn) selectBtn.classList.toggle('active', !!selectMode);
 }
 
 document.getElementById('connect-toggle').addEventListener('click', () => {
@@ -106,16 +106,17 @@ document.getElementById('connect-toggle').addEventListener('click', () => {
 
 document.getElementById('draw-toggle').addEventListener('click', () => {
   drawMode = !drawMode;
-  if (drawMode) { connectionMode = false; connectStartId = null; eraseMode = false; _eraseStart = null; _eraseCurrent = null; }
+  if (drawMode) { connectionMode = false; connectStartId = null; }
   _sbDrawStart = null; _sbDrawCurrent = null;
   document.body.style.cursor = drawMode ? 'crosshair' : 'default';
   nodesDirty = true; syncStripButtons();
 });
 
-document.getElementById('erase-toggle').addEventListener('click', () => {
-  eraseMode = !eraseMode;
-  if (eraseMode) { connectionMode = false; connectStartId = null; drawMode = false; _sbDrawStart = null; _sbDrawCurrent = null; }
-  _eraseStart = null; _eraseCurrent = null;
-  document.body.style.cursor = eraseMode ? 'crosshair' : 'default';
+document.getElementById('select-toggle').addEventListener('click', () => {
+  selectMode = !selectMode;
+  if (selectMode) { connectionMode = false; connectStartId = null; connectStartSide = null; drawMode = false; _sbDrawStart = null; _sbDrawCurrent = null; }
+  _selectStart = null; _selectCurrent = null;
+  if (!selectMode) selectedLayerIds.clear();
+  document.body.style.cursor = selectMode ? 'crosshair' : 'default';
   nodesDirty = true; syncStripButtons();
 });

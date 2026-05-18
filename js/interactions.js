@@ -49,11 +49,17 @@ window.addEventListener('mousedown', e => {
     return;
   }
 
-  // ── erase mode: start selection rect ──
-  if (eraseMode) {
-    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
-    _eraseStart = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
-    _eraseCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+  // ── select mode: drag to select layers ──
+  if (selectMode) {
+    const [_swx, _swy] = screenToWorld(e.clientX, e.clientY);
+    const _sHit = hitTestLayer(_swx, _swy);
+    if (_sHit) {
+      if (selectedLayerIds.has(_sHit.id)) selectedLayerIds.delete(_sHit.id);
+      else selectedLayerIds.add(_sHit.id);
+      nodesDirty = true; return;
+    }
+    _selectStart   = { wx: _swx, wy: _swy };
+    _selectCurrent = { wx: _swx, wy: _swy };
     return;
   }
 
@@ -87,6 +93,26 @@ window.addEventListener('mousedown', e => {
   const [wx, wy] = screenToWorld(e.clientX, e.clientY);
   const hit = hitTestLayer(wx, wy);
   if (hit) {
+    if (e.shiftKey) {
+      // Shift+click: toggle in multi-selection without starting drag
+      if (selectedLayerIds.has(hit.id)) selectedLayerIds.delete(hit.id);
+      else selectedLayerIds.add(hit.id);
+      nodesDirty = true; return;
+    }
+    if (selectedLayerIds.size > 1 && selectedLayerIds.has(hit.id)) {
+      // Start group drag
+      groupDragging = true;
+      groupDragOffX = wx - hit.x; groupDragOffY = wy - hit.y;
+      groupDragAnchorOrigX = hit.x; groupDragAnchorOrigY = hit.y;
+      groupDragLayers = [...selectedLayerIds].map(id => {
+        const l = layers.find(x => x.id === id);
+        return l ? { id, origX: l.x, origY: l.y } : null;
+      }).filter(Boolean);
+      document.body.style.cursor = 'move';
+      return;
+    }
+    // Normal single select — clear multi-selection
+    selectedLayerIds.clear();
     selectedLayerId = hit.id; selectedConnIdx = -1;
     layerDragging   = true;   layerDragId     = hit.id;
     layerDragOffX   = wx - hit.x; layerDragOffY = wy - hit.y;
@@ -151,6 +177,7 @@ window.addEventListener('mousedown', e => {
   }
 
   // ── nothing hit: deselect + pan ──
+  if (!e.shiftKey) selectedLayerIds.clear();
   selectedConnIdx = -1; selectedLayerId = null; selectedSuperboxId = null; closePropEditor();
   connDragIdx = -1;
   panDragging = true; panStartX = e.clientX; panStartY = e.clientY; panCamX = camX; panCamY = camY;
@@ -162,16 +189,41 @@ window.addEventListener('mousemove', e => {
   lastMouseSX = e.clientX; lastMouseSY = e.clientY;
   if (paletteDragType) { drawGhost(e.clientX, e.clientY); gridDirty = true; return; }
 
-  // draw mode live preview
-  if (eraseMode && _eraseStart) {
-    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
-    _eraseCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
-    nodesDirty = true; return;
-  }
-
   if (drawMode && _sbDrawStart) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
     _sbDrawCurrent = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+    nodesDirty = true; return;
+  }
+
+  // select mode live rect
+  if (selectMode && _selectStart) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    _selectCurrent = { wx: wx, wy: wy };
+    nodesDirty = true; return;
+  }
+
+  // group drag
+  if (groupDragging) {
+    const [wx, wy] = screenToWorld(e.clientX, e.clientY);
+    const groupIdSet = new Set(groupDragLayers.map(g => g.id));
+    // Compute delta: where anchor layer should be now minus its original position
+    const ddx = (wx - groupDragOffX) - groupDragAnchorOrigX;
+    const ddy = (wy - groupDragOffY) - groupDragAnchorOrigY;
+    // Get anchor's current pos before move (for elbowX incremental update)
+    const _anchorL = layers.find(l => l.id === groupDragLayers[0]?.id);
+    const _prevAX = _anchorL ? _anchorL.x : 0;
+    const _prevAY = _anchorL ? _anchorL.y : 0;
+    for (const { id, origX, origY } of groupDragLayers) {
+      const l = layers.find(x => x.id === id);
+      if (l) { l.x = origX + ddx; l.y = origY + ddy; }
+    }
+    const _curAX = _anchorL ? _anchorL.x : 0;
+    const _frameDx = _curAX - _prevAX;
+    connections.forEach(c => {
+      if (c.elbowX !== undefined && groupIdSet.has(c.from) && groupIdSet.has(c.to)) {
+        c.elbowX += _frameDx;
+      }
+    });
     nodesDirty = true; return;
   }
 
@@ -333,37 +385,45 @@ window.addEventListener('mouseup', e => {
     return;
   }
 
-  // finalize erase selection
-  if (eraseMode && _eraseStart && _eraseCurrent) {
-    const x1 = snapToGrid(Math.min(_eraseStart.wx, _eraseCurrent.wx));
-    const y1 = snapToGrid(Math.min(_eraseStart.wy, _eraseCurrent.wy));
-    const x2 = snapToGrid(Math.max(_eraseStart.wx, _eraseCurrent.wx));
-    const y2 = snapToGrid(Math.max(_eraseStart.wy, _eraseCurrent.wy));
-    if (x2 - x1 >= 1 && y2 - y1 >= 1) {
-      // delete layers whose center falls inside rect
-      const toDelete = new Set(layers.filter(l => {
-        const t = layerTypes[l.type] || { w: 140, h: 70 };
-        const cx = l.x + t.w / 2, cy = l.y + t.h / 2;
-        return cx >= x1 && cx <= x2 && cy >= y1 && cy <= y2;
-      }).map(l => l.id));
-      // delete superboxes whose center falls inside rect
-      const sbToDelete = new Set(superboxes.filter(sb => {
-        const scx = sb.x + sb.w / 2, scy = sb.y + sb.h / 2;
-        return scx >= x1 && scx <= x2 && scy >= y1 && scy <= y2;
-      }).map(sb => sb.id));
-      if (toDelete.size > 0 || sbToDelete.size > 0) {
-        layers.splice(0, layers.length, ...layers.filter(l => !toDelete.has(l.id)));
-        connections.splice(0, connections.length, ...connections.filter(c => !toDelete.has(c.from) && !toDelete.has(c.to)));
-        superboxes.splice(0, superboxes.length, ...superboxes.filter(sb => !sbToDelete.has(sb.id)));
-        superboxes.forEach(sb => { sb.layerIds = sb.layerIds.filter(id => !toDelete.has(id)); });
-        if (selectedSuperboxId !== null && sbToDelete.has(selectedSuperboxId)) selectedSuperboxId = null;
-        saveState();
-      }
+  // finalize select rect
+  if (selectMode && _selectStart && _selectCurrent) {
+    const x1 = Math.min(_selectStart.wx, _selectCurrent.wx);
+    const y1 = Math.min(_selectStart.wy, _selectCurrent.wy);
+    const x2 = Math.max(_selectStart.wx, _selectCurrent.wx);
+    const y2 = Math.max(_selectStart.wy, _selectCurrent.wy);
+    if (x2 - x1 >= 3 && y2 - y1 >= 3) {
+      selectedLayerIds.clear();
+      layers.forEach(l => {
+        if (l.x >= x1 && l.x <= x2 && l.y >= y1 && l.y <= y2) selectedLayerIds.add(l.id);
+      });
     }
-    eraseMode = false; document.body.style.cursor = 'default';
-    _eraseStart = null; _eraseCurrent = null;
-    nodesDirty = true; syncStripButtons();
-    return;
+    _selectStart = null; _selectCurrent = null;
+    selectMode = false;
+    document.body.style.cursor = 'default';
+    nodesDirty = true; syncStripButtons(); return;
+  }
+
+  // finalize group drag
+  if (groupDragging) {
+    const groupIdSet = new Set(groupDragLayers.map(g => g.id));
+    // Snap all layers to grid; compute snap delta from first layer
+    let snapDx = 0;
+    if (groupDragLayers.length > 0) {
+      const _fl = layers.find(l => l.id === groupDragLayers[0].id);
+      if (_fl) { snapDx = snapToGrid(_fl.x) - _fl.x; }
+    }
+    for (const { id } of groupDragLayers) {
+      const l = layers.find(x => x.id === id);
+      if (l) { l.x = snapToGrid(l.x); l.y = snapToGrid(l.y); }
+    }
+    connections.forEach(c => {
+      if (c.elbowX !== undefined && groupIdSet.has(c.from) && groupIdSet.has(c.to)) {
+        c.elbowX = snapToGrid(c.elbowX + snapDx);
+      }
+    });
+    groupDragging = false; groupDragLayers = [];
+    document.body.style.cursor = 'default';
+    saveState(); nodesDirty = true; return;
   }
 
   // finalize superbox draw
@@ -593,6 +653,59 @@ function syncAll() {
 }
 
 /* --- Superbox copy / paste helpers --- */
+function pasteMulti() {
+  if (!multiClipboard || multiClipboard.layers.length === 0) return;
+  const { layers: pLayers, conns: pConns, sbs: pSbs = [] } = multiClipboard;
+
+  // Build old→new ID maps
+  const layerIdMap = {};
+  for (const l of pLayers) layerIdMap[l.id] = nextId++;
+  const sbIdMap = {};
+  for (const sb of pSbs) sbIdMap[sb.id] = nextId++;
+
+  // Center pasted group on cursor.
+  // l.x / l.y are the layer CENTRES (hitTest uses l.x ± hw), so use them directly.
+  const xs = pLayers.map(l => l.x);
+  const ys = pLayers.map(l => l.y);
+  const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const centerY = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const [mwx, mwy] = screenToWorld(lastMouseSX, lastMouseSY);
+  const dx = snapToGrid(mwx - centerX);
+  const dy = snapToGrid(mwy - centerY);
+
+  // Paste layers
+  const newIdSet = new Set();
+  for (const l of pLayers) {
+    const newL = { ...JSON.parse(JSON.stringify(l)), id: layerIdMap[l.id], x: l.x + dx, y: l.y + dy };
+    layers.push(newL);
+    newIdSet.add(newL.id);
+  }
+
+  // Paste internal connections with elbowX offset
+  for (const c of pConns) {
+    const nc = { ...JSON.parse(JSON.stringify(c)), from: layerIdMap[c.from], to: layerIdMap[c.to] };
+    if (nc.elbowX !== undefined) nc.elbowX += dx;
+    connections.push(nc);
+  }
+
+  // Paste superboxes — remap IDs, do NOT call syncAll() to avoid merging
+  // pasted hierarchy with originals via spatial containment reassignment.
+  for (const sb of pSbs) {
+    const newSb = { ...JSON.parse(JSON.stringify(sb)),
+      id:       sbIdMap[sb.id],
+      x:        sb.x + dx,
+      y:        sb.y + dy,
+      layerIds: sb.layerIds.map(id => layerIdMap[id]).filter(id => id !== undefined),
+      parentId: sb.parentId != null ? (sbIdMap[sb.parentId] ?? null) : null,
+    };
+    superboxes.push(newSb);
+  }
+
+  selectedLayerIds = new Set(newIdSet);
+  selectedLayerId = null; selectedSuperboxId = null;
+  saveState(); nodesDirty = true;
+}
+
 function copySuperbox(rootSb) {
   // Collect all descendant superboxes (BFS on parentId)
   const sbIds = new Set([rootSb.id]);
@@ -698,21 +811,54 @@ window.addEventListener('keydown', e => {
     e.preventDefault(); redo(); return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-    if (selectedSuperboxId !== null && !propEditor.contains(document.activeElement)) {
+    if (propEditor.contains(document.activeElement)) return;
+    // Multi-select copy: highest priority
+    if (selectedLayerIds.size > 0) {
+      const layerList = layers.filter(l => selectedLayerIds.has(l.id));
+      const connList  = connections.filter(c => selectedLayerIds.has(c.from) && selectedLayerIds.has(c.to));
+
+      // Collect superboxes whose direct layers are ALL selected AND whose
+      // direct child SBs are ALL also included. Iterate to fixpoint so nested
+      // groups propagate upward correctly.
+      const includedSbIds = new Set();
+      let sbChanged = true;
+      while (sbChanged) {
+        sbChanged = false;
+        for (const sb of superboxes) {
+          if (includedSbIds.has(sb.id)) continue;
+          const directLayers = sb.layerIds;
+          const childSbs     = superboxes.filter(c => c.parentId === sb.id);
+          const hasContent   = directLayers.length > 0 || childSbs.length > 0;
+          const layersOk     = directLayers.every(id => selectedLayerIds.has(id));
+          const childrenOk   = childSbs.every(c => includedSbIds.has(c.id));
+          if (hasContent && layersOk && childrenOk) { includedSbIds.add(sb.id); sbChanged = true; }
+        }
+      }
+      const sbList = superboxes.filter(s => includedSbIds.has(s.id));
+
+      multiClipboard = {
+        layers: JSON.parse(JSON.stringify(layerList)),
+        conns:  JSON.parse(JSON.stringify(connList)),
+        sbs:    JSON.parse(JSON.stringify(sbList)),
+      };
+      clipboard = null; copiedSuperbox = null;
+      return;
+    }
+    if (selectedSuperboxId !== null) {
       const sb = superboxes.find(s => s.id === selectedSuperboxId);
       if (sb) { copySuperbox(sb); return; }
     }
-    if (selectedLayerId !== null && !propEditor.contains(document.activeElement)) {
+    if (selectedLayerId !== null) {
       const src = layers.find(l => l.id === selectedLayerId);
-      if (src) clipboard = JSON.parse(JSON.stringify(src));
+      if (src) { clipboard = JSON.parse(JSON.stringify(src)); multiClipboard = null; }
     }
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-    if (copiedSuperbox && !propEditor.contains(document.activeElement)) {
-      pasteSuperbox(); return;
-    }
-    if (!clipboard || propEditor.contains(document.activeElement)) return;
+    if (propEditor.contains(document.activeElement)) return;
+    if (multiClipboard) { pasteMulti(); return; }
+    if (copiedSuperbox) { pasteSuperbox(); return; }
+    if (!clipboard) return;
     const _ct = layerTypes[clipboard.type] || { w: 140, h: 70 };
     const [mwx, mwy] = screenToWorld(lastMouseSX, lastMouseSY);
     let nx = snapToGrid(mwx - _ct.w / 2), ny = snapToGrid(mwy - _ct.h / 2);
@@ -728,7 +874,8 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closePropEditor();
     if (connectionMode) { connectionMode = false; connectStartId = null; connectStartSide = null; }
-    if (eraseMode) { eraseMode = false; _eraseStart = null; _eraseCurrent = null; document.body.style.cursor = 'default'; syncStripButtons(); }
+    if (selectMode) { selectMode = false; _selectStart = null; _selectCurrent = null; document.body.style.cursor = 'default'; syncStripButtons(); }
+    selectedLayerIds.clear();
     selectedConnIdx = -1;
     return;
   }
@@ -738,27 +885,37 @@ window.addEventListener('keydown', e => {
     connectionMode = !connectionMode; connectStartId = null; connectStartSide = null; nodesDirty = true; closePropEditor(); syncStripButtons();
     return;
   }
+  if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey
+      && document.activeElement.tagName !== 'INPUT'
+      && document.activeElement.tagName !== 'TEXTAREA') {
+    selectMode = !selectMode;
+    if (selectMode) { connectionMode = false; connectStartId = null; connectStartSide = null; drawMode = false; _sbDrawStart = null; _sbDrawCurrent = null; }
+    _selectStart = null; _selectCurrent = null;
+    if (!selectMode) selectedLayerIds.clear();
+    document.body.style.cursor = selectMode ? 'crosshair' : 'default';
+    nodesDirty = true; syncStripButtons(); return;
+  }
   if ((e.key === 'g' || e.key === 'G') && !e.ctrlKey && !e.metaKey
       && document.activeElement.tagName !== 'INPUT'
       && document.activeElement.tagName !== 'TEXTAREA') {
     drawMode = !drawMode;
-    if (drawMode) { connectionMode = false; connectStartId = null; connectStartSide = null; eraseMode = false; }
+    if (drawMode) { connectionMode = false; connectStartId = null; connectStartSide = null; }
     _sbDrawStart = null; _sbDrawCurrent = null;
     document.body.style.cursor = drawMode ? 'crosshair' : 'default';
     nodesDirty = true; syncStripButtons();
     return;
   }
-  if ((e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey
-      && document.activeElement.tagName !== 'INPUT'
-      && document.activeElement.tagName !== 'TEXTAREA') {
-    eraseMode = !eraseMode;
-    if (eraseMode) { connectionMode = false; connectStartId = null; connectStartSide = null; drawMode = false; _sbDrawStart = null; }
-    _eraseStart = null; _eraseCurrent = null;
-    document.body.style.cursor = eraseMode ? 'crosshair' : 'default';
-    nodesDirty = true; syncStripButtons();
-    return;
-  }
   if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+    // Multi-select delete: highest priority
+    if (selectedLayerIds.size > 0 && !propEditor.contains(document.activeElement)) {
+      const toDelete = new Set(selectedLayerIds);
+      layers.splice(0, layers.length, ...layers.filter(l => !toDelete.has(l.id)));
+      connections.splice(0, connections.length, ...connections.filter(c => !toDelete.has(c.from) && !toDelete.has(c.to)));
+      superboxes.forEach(sb => { sb.layerIds = sb.layerIds.filter(id => !toDelete.has(id)); });
+      selectedLayerIds.clear(); selectedLayerId = null;
+      closePropEditor(); saveState(); return;
+    }
     if (selectedSuperboxId !== null && !propEditor.contains(document.activeElement)) {
       const idx = superboxes.findIndex(s => s.id === selectedSuperboxId);
       if (idx !== -1) { superboxes.splice(idx, 1); selectedSuperboxId = null; syncAll(); saveState(); }

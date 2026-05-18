@@ -75,10 +75,18 @@ let sbResizeStartX = 0, sbResizeStartY = 0;
 let sbResizeOrigX = 0, sbResizeOrigY = 0, sbResizeOrigW = 0, sbResizeOrigH = 0;
 let copiedSuperbox = null;
 
-/* Erase mode */
-let eraseMode = false;
-let _eraseStart = null;
-let _eraseCurrent = null;
-
 /* Visibility */
 let visible = true;
+
+/* Multi-select */
+let selectedLayerIds       = new Set();
+let selectMode             = false;
+let _selectStart           = null;
+let _selectCurrent         = null;
+let multiClipboard         = null;
+
+/* Group drag */
+let groupDragging          = false;
+let groupDragLayers        = [];
+let groupDragOffX          = 0, groupDragOffY = 0;
+let groupDragAnchorOrigX   = 0, groupDragAnchorOrigY = 0;

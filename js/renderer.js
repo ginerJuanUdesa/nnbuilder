@@ -1136,16 +1136,16 @@ function drawSuperboxes(white) {
     nodeCtx.restore();
   }
 
-  // live erase rect while in erase mode
-  if (eraseMode && _eraseStart && _eraseCurrent) {
-    const [ax, ay] = worldToScreen(_eraseStart.wx, _eraseStart.wy);
-    const [bx, by] = worldToScreen(_eraseCurrent.wx, _eraseCurrent.wy);
+  // live select rect while in select mode
+  if (selectMode && _selectStart && _selectCurrent) {
+    const [ax, ay] = worldToScreen(_selectStart.wx, _selectStart.wy);
+    const [bx, by] = worldToScreen(_selectCurrent.wx, _selectCurrent.wy);
     nodeCtx.save();
-    nodeCtx.globalAlpha = 0.12;
-    nodeCtx.fillStyle = '#ff3333';
+    nodeCtx.globalAlpha = 0.10;
+    nodeCtx.fillStyle = '#38bdf8';
     nodeCtx.fillRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
     nodeCtx.globalAlpha = 0.85;
-    nodeCtx.strokeStyle = '#ff3333';
+    nodeCtx.strokeStyle = '#38bdf8';
     nodeCtx.lineWidth = 1.5;
     nodeCtx.setLineDash([5, 4]);
     nodeCtx.strokeRect(Math.min(ax, bx), Math.min(ay, by), Math.abs(bx - ax), Math.abs(by - ay));
@@ -1613,6 +1613,22 @@ function draw() {
     if (l.type === 'rmsnorm'   && isConnected && !isHologramBlocked(l) && !inSuperbox) drawRMSNormHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
+
+    // multi-select highlight ring
+    if (typeof selectedLayerIds !== 'undefined' && selectedLayerIds.has(l.id)) {
+      const _mst = layerTypes[l.type];
+      const _msw = _mst.w * zoom, _msh = _mst.h * zoom;
+      const _msPulse = 0.55 + 0.45 * Math.sin(time * 5.5 + l.id * 0.9);
+      nodeCtx.save();
+      nodeCtx.strokeStyle = white
+        ? `rgba(3, 105, 161, ${_msPulse})`
+        : `rgba(56, 189, 248, ${_msPulse})`;
+      nodeCtx.lineWidth = 2.5;
+      nodeCtx.setLineDash([4, 3]);
+      nodeCtx.strokeRect(sx - _msw / 2 - 4, sy - _msh / 2 - 4, _msw + 8, _msh + 8);
+      nodeCtx.setLineDash([]);
+      nodeCtx.restore();
+    }
 
     // connect-mode highlight ring
     if (l.id === connectStartId) {
