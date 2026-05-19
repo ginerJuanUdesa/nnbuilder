@@ -476,9 +476,14 @@ function openPropEditor(layer) {
     if (vars.length) {
       html += `<div class="pe-hint">Variables — override to customize this instance:</div>`;
       vars.forEach(v => {
-        const def = (v.formula && String(v.formula).trim()) ? v.formula : (v.value != null ? v.value : '');
+        let def = (v.formula && String(v.formula).trim()) ? v.formula : (v.value != null ? v.value : '');
+        // follows a matching GLOBAL variable when present (auto-pick)
+        const g = (typeof variables !== 'undefined') ? variables.find(x => x && x.name === v.name && !x._batch) : null;
+        const linked = !!g;
+        if (linked && typeof resolveVal === 'function') def = resolveVal(v.name);
         const cur = (layer.varOverrides[v.name] !== undefined) ? layer.varOverrides[v.name] : def;
-        html += `<div class="pe-row"><span class="pe-label">${v.name}</span><input class="pe-input" type="text" data-vname="${v.name}" value="${cur}" placeholder="${def}"></div>`;
+        const tag = linked ? ` <span style="font-size:8px;opacity:0.6;">(global)</span>` : '';
+        html += `<div class="pe-row"><span class="pe-label">${v.name}${tag}</span><input class="pe-input" type="text" data-vname="${v.name}" value="${cur}" placeholder="${def}"></div>`;
       });
     } else {
       html += `<div class="pe-hint">No customizable variables in this box</div>`;

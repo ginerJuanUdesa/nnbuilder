@@ -67,6 +67,16 @@ function _buildScope(subnet, varOverrides, extBatch) {
     const raw = (v.formula && String(v.formula).trim()) ? v.formula : v.value;
     m.set(v.name, raw == null ? '1' : raw);
   });
+  // Auto-pick: when a subnet var name matches a GLOBAL variable, follow the
+  // global's current value (re-read every eval, so changes propagate live).
+  if (typeof variables !== 'undefined' && Array.isArray(variables)
+      && typeof resolveVal === 'function') {
+    for (const gv of variables) {
+      if (!gv || !gv.name || !m.has(gv.name) || gv._batch) continue;
+      m.set(gv.name, resolveVal(gv.name)); // concrete number from global scope
+    }
+  }
+  // Explicit per-instance overrides win over both subnet defaults and globals.
   if (varOverrides) for (const k in varOverrides) {
     if (varOverrides[k] !== undefined && varOverrides[k] !== '') m.set(k, varOverrides[k]);
   }
