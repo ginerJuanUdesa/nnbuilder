@@ -1845,7 +1845,7 @@ function draw() {
         nodeCtx.fillStyle = `rgba(${rgb}, 0.65)`;
         const inner = (typeof _fanoutInnerMap !== 'undefined') ? _fanoutInnerMap.get(f.id) : null;
         const sub = inner
-          ? (oShape ? `cat → [${oShape.join(', ')}]` : `inner: ${inner.type}`)
+          ? (oShape ? `stack → [${oShape.join(', ')}]` : `inner: ${inner.type}`)
           : 'drop one box inside';
         nodeCtx.fillText(sub, sx + 6, sy + 5 + fs + 3);
       }

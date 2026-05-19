@@ -354,17 +354,16 @@ function computeOutputShapes() {
 
     /* CONCAT: torch.cat — join N inputs along `dim`. All inputs must share
        ndim and match on every dim except `dim`; that dim sums. */
-    /* FANOUT: container holding one inner box, simulated ×N, output ALREADY
-       concatenated. torch: torch.cat([inner(x) for _ in range(N)], dim=-1).
-       = inner output with the last (feature) dim ×N. Batch (dim 0) untouched. */
+    /* FANOUT: container holding one inner box, simulated ×N, stacked into a
+       NEW dim. torch: torch.stack([inner(x) for _ in range(N)], dim=1).
+       Inserts N at index 1 (right after batch). Inner [B,…] → [B, N, …]. */
     if (layer.type === 'fanout') {
       const inner = _fanoutInnerMap.get(layerId);
       if (!inner) { shapeCache[layerId] = null; return null; }
       const o = resolveShape(inner.id);
       if (!o || o.length === 0) { shapeCache[layerId] = o || null; return shapeCache[layerId]; }
       const N = Math.max(1, resolveVal(layer.n || 2) | 0);
-      const out = [...o];
-      out[out.length - 1] = o[o.length - 1] * N;
+      const out = [o[0], N, ...o.slice(1)]; // [B, N, ...rest]
       shapeCache[layerId] = out;
       return shapeCache[layerId];
     }

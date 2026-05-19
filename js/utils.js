@@ -212,16 +212,14 @@ function _computeDisplayShape(layerId) {
     return resolved;
   }
   if (layer.type === 'fanout') {
-    // container → already-concatenated output: inner shape, last dim = N×feature
+    // container → stacked into a new dim: inner [B,…] → [B, N, …]
     const inner = (typeof _fanoutInnerMap !== 'undefined') ? _fanoutInnerMap.get(layerId) : null;
     if (!inner) return resolved;
     const d = getDisplayShape(inner.id);
     if (!d || d.length === 0) return d || resolved;
-    const N = Math.max(1, resolveVal(layer.n || 2) | 0);
-    const out = [...d];
-    const last = out[out.length - 1];
-    out[out.length - 1] = (typeof last === 'number') ? last * N : `${N}×${last}`;
-    return out;
+    const rawN = layer.n !== undefined ? layer.n : 2;
+    const Nshow = /^-?\d+$/.test(String(rawN)) ? Math.max(1, parseInt(rawN, 10)) : rawN;
+    return [d[0], Nshow, ...d.slice(1)];
   }
   if (layer.type === 'concat') {
     const inc = (_connByTo.get(layerId) || []);

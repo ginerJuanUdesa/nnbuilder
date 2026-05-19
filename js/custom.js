@@ -240,8 +240,7 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
       const sb = i.length ? rs(i[i.length - 1].from, stack) : null;
       if (sb && sb.length) {
         const N = Math.max(1, rv(layer.n || 2) | 0);
-        out = [...sb];
-        out[out.length - 1] = sb[sb.length - 1] * N;
+        out = [sb[0], N, ...sb.slice(1)]; // [B, N, ...rest]
       } else out = null;
     } else if (T === 'add') {
       const i = inc(id);
