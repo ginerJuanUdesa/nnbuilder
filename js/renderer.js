@@ -1618,16 +1618,7 @@ function draw() {
     _layerHiddenMap.set(lid, hidden);
     return hidden;
   };
-  if (_sbCollapsed) {
-    nodeCtx.save();
-    nodeCtx.beginPath();
-    nodeCtx.rect(-1, -1, nodeCanvas.width + 2, nodeCanvas.height + 2); // outer boundary
-    for (const sb of _collapsedHoles) {
-      const [_sx, _sy] = worldToScreen(sb.x, sb.y);
-      nodeCtx.rect(_sx, _sy, sb.w * zoom, sb.h * zoom); // punch hole (outermost collapsed only)
-    }
-    nodeCtx.clip('evenodd');
-  }
+
   // Layer-by-id map: O(1) lookup instead of O(n) layers.find per connection
   const _layerById = new Map();
   for (const _l of layers) _layerById.set(_l.id, _l);
@@ -1636,8 +1627,8 @@ function draw() {
     const fromLayer = _layerById.get(c.from);
     const toLayer   = _layerById.get(c.to);
     if (!fromLayer || !toLayer) continue;
-    // Skip connections where both endpoints are inside a collapsed SB (clipped anyway)
-    if (_layerHidden(c.from) && _layerHidden(c.to)) continue;
+    // Skip connections where either endpoint is inside a collapsed (hidden) SB
+    if (_layerHidden(c.from) || _layerHidden(c.to)) continue;
 
     // Viewport cull: skip connections whose endpoint bbox is fully off-screen.
     // (Selected conn always drawn so its delete/drag handles stay reachable.)
@@ -1699,7 +1690,7 @@ function draw() {
       nodeCtx.stroke();
     }
   }
-  if (_sbCollapsed) nodeCtx.restore(); // end clip region
+
 
   // draw superboxes (below layers)
   drawSuperboxes(white);
