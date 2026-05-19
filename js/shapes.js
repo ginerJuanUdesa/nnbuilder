@@ -61,22 +61,6 @@ function computeOutputShapes() {
     if (fIn.length === 0) continue;
     _connByTo.set(innerId, [{ from: fIn[fIn.length - 1].from, to: innerId, _synthetic: true }]);
   }
-  // expand each fanout's outgoing edge ×N so consumers see N parallel inputs
-  for (const [toId, conns] of [..._connByTo.entries()]) {
-    let out = null;
-    for (let i = 0; i < conns.length; i++) {
-      const fromL = _layerById.get(conns[i].from);
-      if (fromL && fromL.type === 'fanout') {
-        const N = Math.max(1, resolveVal(fromL.n || 2) | 0);
-        if (N > 1) {
-          if (!out) out = conns.slice();
-          const idx = out.indexOf(conns[i]);
-          out.splice(idx, 1, ...Array.from({ length: N }, () => conns[i]));
-        }
-      }
-    }
-    if (out) _connByTo.set(toId, out);
-  }
 
   /* Per-layer param count given an explicit input shape (for FANOUT inner). */
   function _inferParams(layer, inShape) {
@@ -370,14 +354,18 @@ function computeOutputShapes() {
 
     /* CONCAT: torch.cat — join N inputs along `dim`. All inputs must share
        ndim and match on every dim except `dim`; that dim sums. */
-    /* FANOUT: container holding one inner box, simulated ×N.
-       Output shape = the inner box's output (single replica). The ×N
-       multiplication happens on the *outgoing* edge (expanded above), so
-       a downstream CONCAT/ADD naturally sees N inputs. */
+    /* FANOUT: container holding one inner box, simulated ×N, output ALREADY
+       concatenated. torch: torch.cat([inner(x) for _ in range(N)], dim=-1).
+       = inner output with the last (feature) dim ×N. Batch (dim 0) untouched. */
     if (layer.type === 'fanout') {
       const inner = _fanoutInnerMap.get(layerId);
       if (!inner) { shapeCache[layerId] = null; return null; }
-      shapeCache[layerId] = resolveShape(inner.id);
+      const o = resolveShape(inner.id);
+      if (!o || o.length === 0) { shapeCache[layerId] = o || null; return shapeCache[layerId]; }
+      const N = Math.max(1, resolveVal(layer.n || 2) | 0);
+      const out = [...o];
+      out[out.length - 1] = o[o.length - 1] * N;
+      shapeCache[layerId] = out;
       return shapeCache[layerId];
     }
 

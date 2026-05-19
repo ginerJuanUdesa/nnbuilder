@@ -453,11 +453,11 @@ function openPropEditor(layer) {
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.6);">${innerLine}</span></div>
       <div class="pe-row"><span class="pe-label">N</span><input class="pe-input" type="text" value="${layer.n}" id="pe-fanout-n" placeholder="2 or a var"></div>
-      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">out → ${oStr} ×N · ${prm.toLocaleString()} params</span></div>
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">out (concatenated) → ${oStr} · ${prm.toLocaleString()} params</span></div>
       <div class="pe-hint">Place ONE box inside the dashed region. Simulates N
-        replicas each fed the same input; the outgoing edge acts as N edges
-        (CONCAT joins N, ADD sums N, …).<br>
-        PyTorch: <code style="font-size:9px;">[Inner() for _ in range(N)]</code> then cat/add</div>`;
+        replicas each fed the same input; output is ALREADY concatenated on
+        the feature dim (batch untouched) — no separate CONCAT needed.<br>
+        PyTorch: <code style="font-size:9px;">torch.cat([Inner() (x) for _ in range(N)], dim=-1)</code></div>`;
     const ni = peBody.querySelector('#pe-fanout-n');
     ni.addEventListener('change', () => {
       const v = ni.value.trim();

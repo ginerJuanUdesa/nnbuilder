@@ -212,9 +212,16 @@ function _computeDisplayShape(layerId) {
     return resolved;
   }
   if (layer.type === 'fanout') {
-    // container box → display the contained inner box's shape (single replica)
+    // container → already-concatenated output: inner shape, last dim = N×feature
     const inner = (typeof _fanoutInnerMap !== 'undefined') ? _fanoutInnerMap.get(layerId) : null;
-    return inner ? getDisplayShape(inner.id) : resolved;
+    if (!inner) return resolved;
+    const d = getDisplayShape(inner.id);
+    if (!d || d.length === 0) return d || resolved;
+    const N = Math.max(1, resolveVal(layer.n || 2) | 0);
+    const out = [...d];
+    const last = out[out.length - 1];
+    out[out.length - 1] = (typeof last === 'number') ? last * N : `${N}×${last}`;
+    return out;
   }
   if (layer.type === 'concat') {
     const inc = (_connByTo.get(layerId) || []);

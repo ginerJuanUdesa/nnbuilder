@@ -231,15 +231,18 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
         }
       }
     } else if (T === 'fanout') {
-      // FANOUT container: holds one inner box (geometry), simulated xN.
-      // Inside a custom subnet we approximate the fanout's *single-replica*
-      // output as its input shape passthrough. NOTE: if a shape-changing box
-      // (linear/conv) is placed inside a fanout that itself lives inside a
-      // custom subnet, this is approximate — the main-canvas engine handles
-      // the exact case. Subnet+fanout nesting is an edge case.
+      // FANOUT container: output ALREADY concatenated (inner last dim ×N).
+      // In a custom subnet we approximate via input passthrough with the
+      // last dim ×N. NOTE: if a shape-changing inner box (linear/conv) is
+      // placed inside a fanout nested in a custom subnet this is approximate
+      // — the main-canvas engine handles the exact case. Edge case.
       const i = inc(id);
-      out = i.length ? rs(i[i.length - 1].from, stack) : null;
-      if (out) out = [...out];
+      const sb = i.length ? rs(i[i.length - 1].from, stack) : null;
+      if (sb && sb.length) {
+        const N = Math.max(1, rv(layer.n || 2) | 0);
+        out = [...sb];
+        out[out.length - 1] = sb[sb.length - 1] * N;
+      } else out = null;
     } else if (T === 'add') {
       const i = inc(id);
       const shapes = i.map(c => rs(c.from, stack)).filter(Boolean);
