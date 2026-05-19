@@ -260,6 +260,16 @@ function overlapsAny(wx, wy, excludeId) {
   return false;
 }
 
+/* If layerId is the inner box of a FANOUT container, return that fanout
+   layer (connections must attach to the container, not the internal box). */
+function fanoutOwnerOf(layerId) {
+  if (typeof _fanoutInnerMap === 'undefined') return null;
+  for (const [fid, innerL] of _fanoutInnerMap) {
+    if (innerL && innerL.id === layerId) return layers.find(l => l.id === fid) || null;
+  }
+  return null;
+}
+
 function hitTestLayer(wx, wy) {
   // pass 1: non-container layers (so a box inside a FANOUT is grabbable)
   for (let i = layers.length - 1; i >= 0; i--) {

@@ -24,7 +24,9 @@ window.addEventListener('mousedown', e => {
   if (connectionMode) {
     selectedConnIdx = -1;
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
-    const hit = hitTestLayer(wx, wy);
+    let hit = hitTestLayer(wx, wy);
+    // connections attach to the FANOUT container, never its internal box
+    if (hit) { const _fo = fanoutOwnerOf(hit.id); if (_fo) hit = _fo; }
     if (hit) {
       if (connectStartId === null) {
         connectStartId   = hit.id;
