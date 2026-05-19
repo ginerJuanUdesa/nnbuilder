@@ -826,6 +826,7 @@ function copySuperbox(rootSb) {
     conns: JSON.parse(JSON.stringify(connList)),
   };
   clipboard = null; // clear single-layer clipboard
+  _clipSave();
 }
 
 function pasteSuperbox() {
@@ -885,6 +886,29 @@ function pasteSuperbox() {
   saveState();
 }
 
+/* --- Cross-tab clipboard via localStorage --- */
+function _clipSave() {
+  try {
+    localStorage.setItem('nnb_clipboard', JSON.stringify({
+      clipboard: clipboard,
+      multiClipboard: multiClipboard,
+      copiedSuperbox: copiedSuperbox,
+    }));
+  } catch (_e) {}
+}
+function _clipLoad() {
+  // Only load from localStorage when in-memory is empty (another tab wrote it)
+  if (clipboard || multiClipboard || copiedSuperbox) return;
+  try {
+    const raw = localStorage.getItem('nnb_clipboard');
+    if (!raw) return;
+    const d = JSON.parse(raw);
+    clipboard      = d.clipboard      || null;
+    multiClipboard = d.multiClipboard || null;
+    copiedSuperbox = d.copiedSuperbox || null;
+  } catch (_e) {}
+}
+
 /* --- Keyboard: copy / paste --- */
 window.addEventListener('keydown', e => {
   // ── undo / redo ──
@@ -928,6 +952,7 @@ window.addEventListener('keydown', e => {
         sbs:    JSON.parse(JSON.stringify(sbList)),
       };
       clipboard = null; copiedSuperbox = null;
+      _clipSave();
       return;
     }
     if (selectedSuperboxId !== null) {
@@ -936,12 +961,13 @@ window.addEventListener('keydown', e => {
     }
     if (selectedLayerId !== null) {
       const src = layers.find(l => l.id === selectedLayerId);
-      if (src) { clipboard = JSON.parse(JSON.stringify(src)); multiClipboard = null; }
+      if (src) { clipboard = JSON.parse(JSON.stringify(src)); multiClipboard = null; _clipSave(); }
     }
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
     if (propEditor.contains(document.activeElement)) return;
+    _clipLoad(); // pull from localStorage if another tab wrote it
     if (multiClipboard) { pasteMulti(); return; }
     if (copiedSuperbox) { pasteSuperbox(); return; }
     if (!clipboard) return;
