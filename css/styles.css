@@ -480,13 +480,16 @@ body.white-mode .palette-item.type-custom .name { color: #c01f63; }
 .palette-item.type-custom .custom-del:hover { opacity: 1; color: #ff8cc0; }
 .custom-load-btn {
   display: block; width: 100%; box-sizing: border-box; margin: 2px 0 6px;
-  padding: 6px 8px; background: rgba(255, 95, 162, 0.12);
-  border: 1px dashed rgba(255, 95, 162, 0.5); border-radius: 4px;
-  color: #ff5fa2; font: 600 11px 'Courier New', monospace;
-  cursor: pointer; letter-spacing: 0.5px;
+  padding: 5px 8px; background: none;
+  border: 1px solid rgba(255, 95, 162, 0.25); border-radius: 4px;
+  color: #ff5fa2; font: 11px 'Courier New', monospace;
+  cursor: pointer; opacity: 0.55; transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s;
 }
-.custom-load-btn:hover { background: rgba(255, 95, 162, 0.22); border-color: #ff5fa2; }
-body.white-mode .custom-load-btn { color: #c01f63; border-color: rgba(192, 31, 99, 0.5); background: rgba(192, 31, 99, 0.08); }
+.custom-load-btn:hover {
+  opacity: 1; border-color: rgba(255, 95, 162, 0.7);
+  box-shadow: 0 0 8px rgba(255, 95, 162, 0.2);
+}
+body.white-mode .custom-load-btn { color: #c01f63; border-color: rgba(192, 31, 99, 0.3); }
 
 body.white-mode #hud { color: #2a2a2a; text-shadow: none; opacity: 0.8; }
 body.white-mode #hud .label { color: #005abe; }
