@@ -209,7 +209,17 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
       out = src ? [...src] : null;
     } else if (T === 'concat') {
       const i = inc(id);
-      const shapes = i.map(c => rs(c.from, stack)).filter(Boolean);
+      const shapes = [];
+      for (const c of i) {
+        const sh = rs(c.from, stack);
+        if (!sh) continue;
+        const fl = byId.get(c.from);
+        if (fl && fl.type === 'fanout' && sh.length >= 2) {
+          const Nn = sh[1];
+          const sl = [sh[0], ...sh.slice(2)];
+          for (let k = 0; k < Nn; k++) shapes.push(sl);
+        } else shapes.push(sh);
+      }
       if (!shapes.length) out = null;
       else {
         const nd = shapes[0].length;

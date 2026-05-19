@@ -224,7 +224,21 @@ function _computeDisplayShape(layerId) {
   if (layer.type === 'concat') {
     const inc = (_connByTo.get(layerId) || []);
     if (inc.length === 0) return resolved;
-    const ds = inc.map(c => getDisplayShape(c.from)).filter(Boolean);
+    // FANOUT input → its N replica slices: [B, N, ...rest] → N × [B, ...rest]
+    const ds = [];
+    for (const c of inc) {
+      const dsh = getDisplayShape(c.from);
+      if (!dsh) continue;
+      const fromL = layers.find(l => l.id === c.from);
+      if (fromL && fromL.type === 'fanout' && dsh.length >= 2) {
+        const Nv = dsh[1];
+        const Nn = (typeof Nv === 'number') ? Nv : Math.max(1, resolveVal(Nv) | 0);
+        const slice = [dsh[0], ...dsh.slice(2)];
+        for (let k = 0; k < Nn; k++) ds.push(slice);
+      } else {
+        ds.push(dsh);
+      }
+    }
     if (ds.length === 0) return resolved;
     const nd = ds[0].length;
     if (!ds.every(s2 => s2.length === nd)) return resolved;

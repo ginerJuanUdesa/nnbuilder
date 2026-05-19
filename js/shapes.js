@@ -371,7 +371,21 @@ function computeOutputShapes() {
         if (layer.type === 'concat') {
       const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
-      const shapes = incoming.map(c => resolveShape(c.from)).filter(Boolean);
+      // A FANOUT input is its N replicas: [B, N, ...rest] → N × [B, ...rest]
+      // (torch.cat(x.unbind(1), dim)). Other inputs pass through as one tensor.
+      const shapes = [];
+      for (const c of incoming) {
+        const sh = resolveShape(c.from);
+        if (!sh) continue;
+        const fromL = _layerById.get(c.from);
+        if (fromL && fromL.type === 'fanout' && sh.length >= 2) {
+          const N = sh[1];
+          const slice = [sh[0], ...sh.slice(2)];
+          for (let k = 0; k < N; k++) shapes.push(slice);
+        } else {
+          shapes.push(sh);
+        }
+      }
       if (shapes.length === 0) { shapeCache[layerId] = null; return null; }
       const nd = shapes[0].length;
       if (!shapes.every(sh => sh.length === nd)) { shapeCache[layerId] = null; return null; }
