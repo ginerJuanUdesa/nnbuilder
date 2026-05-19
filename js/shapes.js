@@ -50,12 +50,24 @@ function computeOutputShapes() {
     if (f.type !== 'fanout') continue;
     const ft = layerTypes.fanout;
     const fw = (f.w || ft.w), fh = (f.h || ft.h);
-    const x0 = f.x - fw / 2, x1 = f.x + fw / 2;
-    const y0 = f.y - fh / 2, y1 = f.y + fh / 2;
-    let inner = null;
+    const fx0 = f.x - fw / 2, fx1 = f.x + fw / 2;
+    const fy0 = f.y - fh / 2, fy1 = f.y + fh / 2;
+    // Pick the box with the largest overlap-area with the fanout rect
+    // (forgiving: a box only partly dragged in still counts as the inner).
+    let inner = null, bestArea = 0;
     for (const l of layers) {
       if (l.id === f.id || l.type === 'fanout') continue;
-      if (l.x >= x0 && l.x <= x1 && l.y >= y0 && l.y <= y1) { inner = l; break; }
+      const lt = layerTypes[l.type] || { w: 140, h: 70 };
+      const lx0 = l.x - lt.w / 2, lx1 = l.x + lt.w / 2;
+      const ly0 = l.y - lt.h / 2, ly1 = l.y + lt.h / 2;
+      const ox = Math.min(fx1, lx1) - Math.max(fx0, lx0);
+      const oy = Math.min(fy1, ly1) - Math.max(fy0, ly0);
+      if (ox <= 0 || oy <= 0) continue;
+      const area = ox * oy;
+      const centreIn = l.x >= fx0 && l.x <= fx1 && l.y >= fy0 && l.y <= fy1;
+      // centre-inside always wins over a mere edge clip
+      const score = centreIn ? area + 1e9 : area;
+      if (score > bestArea) { bestArea = score; inner = l; }
     }
     if (inner) { _fanoutInnerMap.set(f.id, inner); _innerToFanout.set(inner.id, f); }
   }
