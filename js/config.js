@@ -19,6 +19,7 @@ const layerTypes = {
   transpose:  { w: 140, h: 70, color: '#aa88ff', glow: '#aa88ff', bg: 'rgba(30, 0, 70, 0.97)',  lightColor: '#6644cc' },
   layernorm:  { w: 140, h: 70, color: '#34d399', glow: '#34d399', bg: 'rgba(0, 45, 30, 0.97)',   lightColor: '#0a7a50' },
   rmsnorm:  { w: 140, h: 70, color: '#38bdf8', glow: '#38bdf8', bg: 'rgba(0, 25, 55, 0.97)',  lightColor: '#0369a1' },
+  custom:   { w: 150, h: 78, color: '#ff5fa2', glow: '#ff5fa2', bg: 'rgba(55, 0, 28, 0.97)',  lightColor: '#c01f63' },
 };
 
 const ALL_FNS = ['none', 'relu', 'gelu', 'swiglu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'softplus', 'mish'];

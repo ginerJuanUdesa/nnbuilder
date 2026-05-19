@@ -97,6 +97,18 @@ and access `incoming[0].from`, `incoming[1].from` etc. Return `null` if count in
 - Use `resolveVal(layer.param)` to convert variable names/expressions to numbers
 - Support negative dim indices: `if (d < 0) d = srcShape.length + d`
 
+#### Step 2b — `js/custom.js` — REQUIRED for every new layer type
+
+`custom.js` embeds a **standalone copy** of the shape + param formulas
+(`subnetEval`'s `rs()` switch and the param loop) so a `.nnb` loaded as a
+Custom box propagates correctly without touching globals. It does **not**
+call `resolveShape`. When you add a new layer type in Step 2 you MUST also
+add the same formula as a `} else if (T === 'myop') {` branch in
+`subnetEval`'s `rs()` (use `rv(x)` instead of `resolveVal`, `inc(id)`
+instead of `_connByTo`). If the op has trainable weights, also add its
+count to the param loop (mirror the `isFirst`/weightOwner rule). Skipping
+this means custom boxes containing your op silently produce wrong shapes.
+
 ---
 
 ### Step 3 — `js/utils.js` — two edits
@@ -276,6 +288,38 @@ Add after the `type-transpose` block:
 body.white-mode .palette-item.type-myop { background: rgba(R, G, B, 0.08); border-color: rgba(R2, G2, B2, 0.4); }
 body.white-mode .palette-item.type-myop .name { color: #lightColor; }
 ```
+
+---
+
+## Custom Boxes (`type: 'custom'`)
+
+A Custom box embeds a whole sub-network loaded from a `.nnb` file. It is
+**not** added via the Step 0–7 pipeline — the type already exists. Relevant
+pieces:
+
+- **`js/custom.js`** — `customLibrary` (palette registry, persisted to
+  localStorage `nnb_custom_lib`), `validateSubnet()`, `subnetEval()`
+  (isolated shape/param engine), `renderCustomPalette()`, `loadCustomNnb()`.
+- A custom layer object: `{ type:'custom', customName, subnet:{layers,
+  connections,variables}, varOverrides:{} }`. `subnet` is deep-cloned per
+  instance so each box is independent and rides along in `_snap()` for free.
+- **`.nnb` validity** (enforced by `validateSubnet`): exactly 1 `input`;
+  exactly 1 *terminal* `output` (an `output` node with no outgoing
+  connection) — mandatory; extra `output` nodes allowed only if they have
+  an outgoing connection.
+- The subnet `input` node resolves to the box's **external incoming
+  shape** (module-style: it takes the caller's tensor, not its own dims).
+- `subnet.variables` are shown in the prop editor; edits write to
+  `layer.varOverrides` (string values), applied over subnet vars by
+  `_buildScope`. Outer `BATCH` drives the subnet batch dim.
+- Params: `subnetEval` returns `{outShape, params}`. `shapes.js` stores
+  `outShape` in `shapeCache`, sets `layer._customParams`, and adds it to
+  `window._totalParams` in a post-pass after the connection param loop.
+- Nested custom boxes are supported (depth-guarded recursion in
+  `subnetEval`).
+
+**Maintenance rule:** any change to a shape/param formula in `shapes.js`
+must be mirrored in `subnetEval` (see Step 2b).
 
 ---
 

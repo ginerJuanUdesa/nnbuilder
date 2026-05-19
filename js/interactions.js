@@ -452,6 +452,25 @@ window.addEventListener('mousemove', e => {
 window.addEventListener('mouseup', e => {
   if (e.button !== 0) return;
 
+  if (paletteDragType === 'custom') {
+    const entry = (typeof customLibrary !== 'undefined') ? customLibrary[paletteCustomIdx] : null;
+    const [cwx, cwy] = screenToWorld(e.clientX, e.clientY);
+    const cx = snapToGrid(cwx), cy = snapToGrid(cwy);
+    if (entry && !overlapsAny(cx, cy, null)) {
+      layers.push({
+        id: nextId++, type: 'custom', x: cx, y: cy,
+        customName:   entry.name,
+        subnet:       JSON.parse(JSON.stringify(entry.subnet)),
+        varOverrides: {},
+      });
+      selectedLayerId = layers[layers.length - 1].id;
+      saveState();
+    }
+    paletteDragType = null; paletteCustomIdx = null; hideGhost();
+    if (ghostEl._paletteSource) ghostEl._paletteSource.classList.remove('dragging');
+    ghostEl._paletteSource = null; document.body.style.cursor = 'crosshair'; gridDirty = true;
+    return;
+  }
   if (paletteDragType) {
     const [wx, wy] = screenToWorld(e.clientX, e.clientY);
     const swx = snapToGrid(wx), swy = snapToGrid(wy);

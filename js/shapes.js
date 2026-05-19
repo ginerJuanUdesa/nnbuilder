@@ -284,6 +284,20 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* CUSTOM: composite box — shape & params from embedded subnet */
+    if (layer.type === 'custom') {
+      const incoming = (_connByTo.get(layerId) || []);
+      const srcShape = incoming.length ? resolveShape(incoming[incoming.length - 1].from) : null;
+      if (layer.subnet && typeof subnetEval === 'function') {
+        const r = subnetEval(layer.subnet, srcShape, layer.varOverrides);
+        layer._customParams = r.params || 0;
+        layer._customErr    = r.error || null;
+        shapeCache[layerId] = r.outShape || null;
+        return shapeCache[layerId];
+      }
+      shapeCache[layerId] = null; return null;
+    }
+
     /* OUTPUT: passthrough */
     if (layer.type === 'output') {
       const incoming = connections.filter(c => c.to === layer.id);
@@ -377,6 +391,9 @@ function computeOutputShapes() {
     } else {
       c.paramCount = 0; c.paramLabel = ''; c.paramLabelTop = '';
     }
+  }
+  for (const l of layers) {
+    if (l.type === 'custom' && typeof l._customParams === 'number') totalParams += l._customParams;
   }
   window._totalParams = totalParams;
 }

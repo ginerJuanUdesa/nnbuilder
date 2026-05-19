@@ -440,6 +440,40 @@ function openPropEditor(layer) {
     peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
     setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
 
+  } else if (layer.type === 'custom') {
+    peTitle.textContent = (layer.customName || 'CUSTOM').toUpperCase();
+    const inc = connections.filter(c => c.to === layer.id);
+    const src = inc.length > 0 ? shapeCache[inc[inc.length - 1].from] : null;
+    const inStr  = src ? `[${src.join(', ')}]` : '?';
+    const oShape = shapeCache[layer.id];
+    const outStr = oShape ? `[${oShape.join(', ')}]` : '?';
+    const prm    = (typeof layer._customParams === 'number') ? layer._customParams : 0;
+    const err    = layer._customErr;
+    const vars   = ((layer.subnet && layer.subnet.variables) || []).filter(v => v && v.name && !v._batch);
+    if (!layer.varOverrides) layer.varOverrides = {};
+    let html = `<div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(255,95,162,0.55);">${inStr} → ${outStr}</span></div>`;
+    html += `<div class="pe-row"><span class="pe-label">PARAMS</span><span class="pe-val">${prm.toLocaleString()}</span></div>`;
+    if (err) html += `<div class="pe-hint" style="color:#ff6666;">⚠ ${err}</div>`;
+    if (vars.length) {
+      html += `<div class="pe-hint">Variables — override to customize this instance:</div>`;
+      vars.forEach(v => {
+        const def = (v.formula && String(v.formula).trim()) ? v.formula : (v.value != null ? v.value : '');
+        const cur = (layer.varOverrides[v.name] !== undefined) ? layer.varOverrides[v.name] : def;
+        html += `<div class="pe-row"><span class="pe-label">${v.name}</span><input class="pe-input" type="text" data-vname="${v.name}" value="${cur}" placeholder="${def}"></div>`;
+      });
+    } else {
+      html += `<div class="pe-hint">No customizable variables in this box</div>`;
+    }
+    peBody.innerHTML = html;
+    peBody.querySelectorAll('input[data-vname]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        const nm = inp.dataset.vname, val = inp.value.trim();
+        if (val === '') delete layer.varOverrides[nm];
+        else layer.varOverrides[nm] = val;
+        saveState(); nodesDirty = true;
+        openPropEditor(layer); // refresh shape/param readout
+      });
+    });
   } else if (layer.type === 'matmul') {
     peTitle.textContent = 'MATMUL';
     const inc = connections.filter(c => c.to === layer.id);

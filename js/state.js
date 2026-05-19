@@ -38,6 +38,7 @@ let connectMouseX  = 0, connectMouseY = 0;
 
 /* Palette drag */
 let paletteDragType   = null;
+let paletteCustomIdx  = null; // index into customLibrary when dragging a custom box
 let paletteDragOffset = { x: 0, y: 0 };
 
 /* Pan drag */

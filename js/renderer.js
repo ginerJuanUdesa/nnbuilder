@@ -140,6 +140,7 @@ function drawLayerBox(layer, cx, cy) {
       transpose:  'rgba(225, 215, 255, 0.97)',
       layernorm:  'rgba(210, 245, 230, 0.97)',
       rmsnorm:  'rgba(200, 235, 252, 0.97)',
+      custom:   'rgba(255, 210, 230, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -170,6 +171,8 @@ function drawLayerBox(layer, cx, cy) {
     nodeCtx.textBaseline = 'middle';
     const baseLabel = layer.type === 'conv'
       ? `CONV${layer.ndim !== undefined ? layer.ndim : 2}D`
+      : layer.type === 'custom'
+      ? (layer.customName || 'CUSTOM').toUpperCase()
       : layer.type.toUpperCase();
     const label = layer.name ? `${baseLabel}:${layer.name}` : baseLabel;
     const labelFits = nodeCtx.measureText(label).width <= t.w * zoom - 8;
@@ -400,6 +403,20 @@ function drawLayerBox(layer, cx, cy) {
         const baseY = baseY0 - shift;
         nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
         nodeCtx.fillText(text, cx, baseY);
+
+      } else if (layer.type === 'custom') {
+        const oShape = shapeCache[layer.id];
+        const prm    = (typeof layer._customParams === 'number') ? layer._customParams : null;
+        const text   = oShape
+          ? `[${oShape.join(', ')}]${prm != null ? ' · ' + prm.toLocaleString() + 'p' : ''}`
+          : (layer._customErr ? '⚠ ' + layer._customErr : 'custom');
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
