@@ -172,12 +172,15 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
       if (!src) out = null;
       else {
         const n = src.length;
+        if (n <= 1) { out = [...src]; }
+        else {
         const sd = layer.start_dim !== undefined ? layer.start_dim : 1;
         const ed = layer.end_dim !== undefined ? layer.end_dim : -1;
-        const s = Math.max(0, Math.min(sd < 0 ? n + sd : sd, n - 1));
+        const s = Math.max(1, Math.min(sd < 0 ? n + sd : sd, n - 1)); // never flatten batch (dim 0)
         const e = Math.max(s, Math.min(ed < 0 ? n + ed : ed, n - 1));
         const fp = src.slice(s, e + 1).reduce((a, b) => a * b, 1);
         out = [...src.slice(0, s), fp, ...src.slice(e + 1)];
+        }
       }
     } else if (T === 'unsqueeze') {
       const i = inc(id);
@@ -428,7 +431,7 @@ function subnetDisplay(subnet, extDispShape, varOverrides, depth) {
           const n = src.length;
           const sd = L.start_dim !== undefined ? L.start_dim : 1;
           const ed = L.end_dim !== undefined ? L.end_dim : -1;
-          const a = Math.max(0, Math.min(sd < 0 ? n + sd : sd, n - 1));
+          const a = Math.max(1, Math.min(sd < 0 ? n + sd : sd, n - 1)); // never flatten batch (dim 0)
           const e = Math.max(a, Math.min(ed < 0 ? n + ed : ed, n - 1));
           const seg = src.slice(a, e + 1);
           const prod = seg.every(v => typeof v === 'number')

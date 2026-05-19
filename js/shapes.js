@@ -117,9 +117,10 @@ function computeOutputShapes() {
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape) { shapeCache[layerId] = null; return null; }
       const n  = srcShape.length;
+      if (n <= 1) { shapeCache[layerId] = [...srcShape]; return shapeCache[layerId]; } // only batch dim — nothing to flatten
       const sd = layer.start_dim !== undefined ? layer.start_dim : 1; // default 1: preserve batch dim 0
       const ed = layer.end_dim   !== undefined ? layer.end_dim   : -1;
-      const s  = Math.max(0, Math.min(sd < 0 ? n + sd : sd, n - 1));
+      const s  = Math.max(1, Math.min(sd < 0 ? n + sd : sd, n - 1)); // never flatten batch (dim 0)
       const e  = Math.max(s,  Math.min(ed < 0 ? n + ed : ed, n - 1));
       const flatPart = srcShape.slice(s, e + 1).reduce((a, b) => a * b, 1);
       shapeCache[layerId] = [...srcShape.slice(0, s), flatPart, ...srcShape.slice(e + 1)];
