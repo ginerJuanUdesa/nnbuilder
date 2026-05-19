@@ -336,7 +336,7 @@ function openPropEditor(layer) {
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(170,136,255,0.4);">${fmtS(src)} → ${fmtS(out)}</span></div>
       <div class="pe-row"><span class="pe-label">DIM0</span><input class="pe-input" type="number" value="${layer.dim0}" id="pe-t-dim0" step="1" placeholder="0" style="width:55px"></div>
       <div class="pe-row"><span class="pe-label">DIM1</span><input class="pe-input" type="number" value="${layer.dim1}" id="pe-t-dim1" step="1" placeholder="1" style="width:55px"></div>
-      <div class="pe-hint">torch.transpose(x, dim0, dim1) — supports negatives</div>`;
+`;
     const d0inp = peBody.querySelector('#pe-t-dim0');
     const d1inp = peBody.querySelector('#pe-t-dim1');
     d0inp.addEventListener('change', () => { layer.dim0 = parseInt(d0inp.value) || 0; saveState(); });
@@ -369,7 +369,7 @@ function openPropEditor(layer) {
         <span class="pe-label">AFFINE</span>
         <input type="checkbox" id="pe-ln-aff" ${layer.elementwise_affine ? 'checked' : ''} style="accent-color:var(--pe-color);width:16px;height:16px">
       </div>
-      <div class="pe-hint">nn.LayerNorm — normalizes last dim(s), shape passthrough</div>`;
+`;
 
     peBody.querySelector('#pe-ln-ns').addEventListener('change', e => {
       const raw = e.target.value.trim();
@@ -408,7 +408,7 @@ function openPropEditor(layer) {
         <span class="pe-label">AFFINE</span>
         <input type="checkbox" id="pe-rms-aff" ${layer.elementwise_affine ? 'checked' : ''} style="accent-color:var(--pe-color);width:16px;height:16px">
       </div>
-      <div class="pe-hint">nn.RMSNorm — x÷RMS(x)×w, weight only (no bias), shape passthrough</div>`;
+`;
 
     peBody.querySelector('#pe-rms-ns').addEventListener('change', e => {
       const raw = e.target.value.trim();
@@ -435,7 +435,7 @@ function openPropEditor(layer) {
         </select>
       </div>
       <div class="pe-row" style="margin-top:6px;"><span class="pe-label">FACTOR</span><input class="pe-input" type="text" value="${layer.factor}" id="pe-scale-factor" placeholder="e.g. sqrt(dk)"></div>
-      <div class="pe-hint">x ${layer.op === '/' ? '÷' : '×'} factor  (shape unchanged)</div>`;
+`;
     peBody.querySelector('#pe-scale-op').addEventListener('change', e => { layer.op = e.target.value; saveState(); nodesDirty = true; });
     peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
     setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
@@ -472,8 +472,7 @@ function openPropEditor(layer) {
     renderTD();
     const wrap = document.createElement('div');
     wrap.innerHTML = `
-      <div class="pe-hint">torch.triu(torch.ones(*dims), diagonal) — upper-triangular ones. Source node (no batch dim).</div>
-      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIAGONAL</span><input class="pe-input" type="number" step="1" value="${layer.diagonal}" id="pe-triu-diag"></div>
+<div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIAGONAL</span><input class="pe-input" type="number" step="1" value="${layer.diagonal}" id="pe-triu-diag"></div>
       <div class="pe-row" style="margin-top:4px;"><span class="pe-label">UPPER TRI</span><input type="checkbox" id="pe-triu-bool" ${layer.upper ? 'checked' : ''} style="accent-color:#a3e635;width:14px;height:14px;cursor:pointer;"></div>`;
     peBody.appendChild(dc);
     peBody.appendChild(wrap);
@@ -495,7 +494,7 @@ function openPropEditor(layer) {
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(251,113,133,0.6);">scores ${sStr} · mask ${mStr} → ${oShape ? '['+oShape.join(', ')+']' : '?'}</span></div>
       <div class="pe-row" style="margin-top:6px;"><span class="pe-label">VALUE</span><input class="pe-input" type="text" value="${layer.value}" id="pe-mf-val" placeholder="-inf or 0"></div>
-      <div class="pe-hint">scores.masked_fill(mask, value) — input 0 = scores, input 1 = mask. Fills where mask is True.</div>`;
+`;
     const vi = peBody.querySelector('#pe-mf-val');
     vi.addEventListener('change', () => { layer.value = vi.value.trim() || '-inf'; saveState(); nodesDirty = true; });
     setTimeout(() => vi.focus(), 50);
@@ -538,8 +537,7 @@ function openPropEditor(layer) {
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(125,95,255,0.55);">${inc.length} in → ${outStr}</span></div>
       <div class="pe-row"><span class="pe-label">DIM</span><input class="pe-input" type="number" step="1" value="${layer.dim}" id="pe-cat-dim"></div>
-      <div class="pe-hint">torch.cat — joins inputs along DIM (negative ok). All other dims must match.</div>
-      <div class="pe-hint" style="font-size:9px;opacity:0.6;">${inStrs.join('  ·  ') || 'no inputs'}</div>`;
+`;
     const di = peBody.querySelector('#pe-cat-dim');
     di.addEventListener('change', () => {
       const v = di.value.trim();
@@ -560,9 +558,9 @@ function openPropEditor(layer) {
     if (!layer.varOverrides) layer.varOverrides = {};
     let html = `<div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(255,95,162,0.55);">${inStr} → ${outStr}</span></div>`;
     html += `<div class="pe-row"><span class="pe-label">PARAMS</span><span class="pe-val">${prm.toLocaleString()}</span></div>`;
-    if (err) html += `<div class="pe-hint" style="color:#ff6666;">⚠ ${err}</div>`;
+    if (err) html += ``;
     if (vars.length) {
-      html += `<div class="pe-hint">Variables — override to customize this instance:</div>`;
+      html += ``;
       vars.forEach(v => {
         let def = (v.formula && String(v.formula).trim()) ? v.formula : (v.value != null ? v.value : '');
         // follows a matching GLOBAL variable when present (auto-pick)
@@ -574,7 +572,7 @@ function openPropEditor(layer) {
         html += `<div class="pe-row"><span class="pe-label">${v.name}${tag}</span><input class="pe-input" type="text" data-vname="${v.name}" value="${cur}" placeholder="${def}"></div>`;
       });
     } else {
-      html += `<div class="pe-hint">No customizable variables in this box</div>`;
+      html += ``;
     }
     peBody.innerHTML = html;
     peBody.querySelectorAll('input[data-vname]').forEach(inp => {
@@ -595,13 +593,13 @@ function openPropEditor(layer) {
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label">A</span><span class="pe-val">${fmtS(shA)}</span></div>
       <div class="pe-row"><span class="pe-label">B</span><span class="pe-val">${fmtS(shB)}</span></div>
-      <div class="pe-hint">A @ B  (inner dims must match)</div>`;
+`;
   } else if (layer.type === 'squeeze') {
     peTitle.textContent = 'SQUEEZE';
     const dimVal = layer.dim !== undefined && layer.dim !== null ? layer.dim : '';
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label">DIM</span><input class="pe-input" type="number" value="${dimVal}" id="pe-dim" step="1" placeholder="all"></div>
-      <div class="pe-hint">Leave blank → squeeze all size-1 dims</div>`;
+`;
     const dimInp = peBody.querySelector('#pe-dim');
     if (dimInp) {
       dimInp.addEventListener('change', () => {
@@ -674,7 +672,7 @@ function openSuperboxEditor(sb) {
   peBody.appendChild(nameRow);
 
   const infoRow = document.createElement('div'); infoRow.className = 'pe-hint';
-  infoRow.textContent = `${sb.layerIds.length} layer${sb.layerIds.length !== 1 ? 's' : ''} · Ctrl+C/V to copy`;
+  infoRow.textContent = `${sb.layerIds.length} layer${sb.layerIds.length !== 1 ? 's' : ''}`;
   peBody.appendChild(infoRow);
 
   // center on screen
