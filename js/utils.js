@@ -223,7 +223,7 @@ function _computeDisplayShape(layerId) {
     if (ds.length === 0) return resolved;
     const nd = ds[0].length;
     if (!ds.every(s2 => s2.length === nd)) return resolved;
-    let d = layer.dim !== undefined ? resolveVal(layer.dim) : 0;
+    let d = layer.dim !== undefined ? resolveVal(layer.dim) : -1;
     if (d < 0) d = nd + d;
     if (d < 0 || d >= nd) return resolved;
     const out = [...ds[0]];

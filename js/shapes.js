@@ -388,7 +388,7 @@ function computeOutputShapes() {
       if (shapes.length === 0) { shapeCache[layerId] = null; return null; }
       const nd = shapes[0].length;
       if (!shapes.every(sh => sh.length === nd)) { shapeCache[layerId] = null; return null; }
-      let d = layer.dim !== undefined ? resolveVal(layer.dim) : 0;
+      let d = layer.dim !== undefined ? resolveVal(layer.dim) : -1; // torch: join on feature dim, never batch
       if (d < 0) d = nd + d;
       if (d < 0 || d >= nd) { shapeCache[layerId] = null; return null; }
       for (let k = 0; k < nd; k++) {

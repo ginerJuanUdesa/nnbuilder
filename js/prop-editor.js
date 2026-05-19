@@ -468,7 +468,7 @@ function openPropEditor(layer) {
 
   } else if (layer.type === 'concat') {
     peTitle.textContent = 'CONCAT';
-    if (layer.dim === undefined) layer.dim = 0;
+    if (layer.dim === undefined) layer.dim = -1; // torch: join on feature dim, batch (0) untouched
     const inc = connections.filter(c => c.to === layer.id);
     const inStrs = inc.map(c => { const sh = shapeCache[c.from]; return sh ? `[${sh.join(', ')}]` : '—'; });
     const out = getDisplayShape(layer.id);

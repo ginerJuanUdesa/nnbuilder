@@ -215,7 +215,7 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
         const nd = shapes[0].length;
         if (!shapes.every(sh => sh.length === nd)) out = null;
         else {
-          let d = layer.dim !== undefined ? rv(layer.dim) : 0;
+          let d = layer.dim !== undefined ? rv(layer.dim) : -1;
           if (d < 0) d = nd + d;
           if (d < 0 || d >= nd) out = null;
           else {
