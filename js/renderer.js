@@ -1820,72 +1820,19 @@ function draw() {
     }
   }
 
-  // Pre-compute per-layer lookups once (O(n+m) total instead of O(n*m) per layer)
-  const _connectedIds = new Set();
-  for (const c of connections) { _connectedIds.add(c.from); _connectedIds.add(c.to); }
-  // _inSuperboxIds: reuse _sbLayerMap from setup above (already populated)
-  // Hologram-blocked set. Skip entirely at zoom<0.28: all hologram fns
-  // guard 'if (zoom < 0.28) return' so blocked status is irrelevant.
-  const _hologramBlockedIds = new Set();
-  if (zoom >= 0.28) for (const layer of layers) {
-    const t = layerTypes[layer.type]; if (!t) continue;
-    // skip off-screen layers — hologram never drawn, blocked status irrelevant
-    const [_hx, _hy] = worldToScreen(layer.x, layer.y);
-    const _hm = Math.max(150, 200 * zoom);
-    if (_hx + t.w * zoom / 2 + _hm < 0 || _hx - t.w * zoom / 2 - _hm > W ||
-        _hy + t.h * zoom / 2 + _hm < 0 || _hy - t.h * zoom / 2 - _hm > H) continue;
-    const boxTop = layer.y - t.h / 2;
-    for (const other of layers) {
-      if (other.id === layer.id) continue;
-      const ot = layerTypes[other.type]; if (!ot) continue;
-      const xOverlap = Math.abs(other.x - layer.x) < (t.w + ot.w) / 2;
-      const yOverlap = other.y + ot.h / 2 > boxTop - 100 && other.y - ot.h / 2 < boxTop;
-      if (xOverlap && yOverlap) { _hologramBlockedIds.add(layer.id); break; }
-    }
-  }
-
-  // draw layers + holograms
+  // draw layers
   for (const l of layers) {
     const lt_dims     = layerTypes[l.type] || { w: 140, h: 70 };
     const [sx, sy]   = worldToScreen(l.x, l.y);
 
-    // Viewport cull: skip layers entirely off-screen (with margin for holograms)
-    const _margin = Math.max(150, 200 * zoom);
+    // Viewport cull: skip layers entirely off-screen
+    const _margin = Math.max(60, 80 * zoom);
     if (sx + lt_dims.w * zoom / 2 + _margin < 0 || sx - lt_dims.w * zoom / 2 - _margin > W ||
         sy + lt_dims.h * zoom / 2 + _margin < 0 || sy - lt_dims.h * zoom / 2 - _margin > H) continue;
 
-    const isConnected = _connectedIds.has(l.id);
     const inSuperbox  = _sbLayerMap.has(l.id);
     // hide layer when any superbox in its ancestry chain is collapsed
     if (inSuperbox && _layerHidden(l.id)) continue;
-
-    if (l.type === 'input'   && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawCSVHologram(l, sx, sy, white);
-    if (l.type === 'linear'  && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawNeuronHologram(l, sx, sy, white);
-    if (l.type === 'linear'  && l.activation && l.activation !== 'none' && !inSuperbox) {
-      const lt          = layerTypes.linear;
-      const layerBottom = l.y + lt.h / 2;
-      const curveBlocked = layers.some(other => {
-        if (other.id === l.id) return false;
-        const ot = layerTypes[other.type]; if (!ot) return false;
-        return Math.abs(other.x - l.x) < (lt.w + ot.w) / 2
-          && other.y - ot.h / 2 > layerBottom
-          && other.y - ot.h / 2 < layerBottom + 75;
-      });
-      if (!curveBlocked) drawActivationCurve(l, sx, sy, white);
-    }
-    if (l.type === 'flatten'  && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawFlattenHologram(l, sx, sy, white);
-    if (l.type === 'mean'     && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawMeanHologram(l, sx, sy, white);
-    if (l.type === 'conv'     && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawConvHologram(l, sx, sy, white);
-    if (l.type === 'unsqueeze' && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawUnsqueezeHologram(l, sx, sy, white);
-    if (l.type === 'squeeze'   && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawSqueezeHologram(l, sx, sy, white);
-    if (l.type === 'softmax'   && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawSoftmaxHologram(l, sx, sy, white);
-    if (l.type === 'add'       && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawAddHologram(l, sx, sy, white);
-    if (l.type === 'matmul'       && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawMatmulHologram(l, sx, sy, white);
-    if (l.type === 'scale'     && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawScaleHologram(l, sx, sy, white);
-    if (l.type === 'transpose' && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawTransposeHologram(l, sx, sy, white);
-    if (l.type === 'layernorm' && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawLayerNormHologram(l, sx, sy, white);
-    if (l.type === 'rmsnorm'   && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawRMSNormHologram(l, sx, sy, white);
-    if (l.type === 'fanout'    && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawFanoutHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 
