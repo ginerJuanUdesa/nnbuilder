@@ -230,6 +230,12 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
           }
         }
       }
+    } else if (T === 'fanout') {
+      // passthrough — same tensor to N consumers
+      // PyTorch: outputs = [layer(x) for layer in self.n_layers]
+      const i = inc(id);
+      out = i.length ? rs(i[0].from, stack) : null;
+      if (out) out = [...out];
     } else if (T === 'add') {
       const i = inc(id);
       const shapes = i.map(c => rs(c.from, stack)).filter(Boolean);

@@ -24,7 +24,7 @@ function loop(ts) {
 
   if (gridDirty) nodesDirty = true;
 
-  const animatedTypes = ['flatten', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'conv', 'mean', 'linear', 'input', 'layernorm', 'rmsnorm'];
+  const animatedTypes = ['flatten', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'conv', 'mean', 'linear', 'input', 'layernorm', 'rmsnorm', 'fanout'];
   // hasAnimated: cache result, only recompute when layer/connection count changes
   if (_hasAnimatedDirty) {
     const _cset = new Set(); for (const c of connections) { _cset.add(c.from); _cset.add(c.to); }

@@ -142,6 +142,7 @@ function drawLayerBox(layer, cx, cy) {
       rmsnorm:  'rgba(200, 235, 252, 0.97)',
       custom:   'rgba(255, 210, 230, 0.97)',
       concat:   'rgba(222, 214, 255, 0.97)',
+      fanout:   'rgba(245, 210, 255, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -449,6 +450,17 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
+      } else if (layer.type === 'fanout') {
+        const nOut = (_connByFrom.get(layer.id) || []).length;
+        const inShape = getDisplayShape(layer.id);
+        const text = inShape ? `[${inShape.join(', ')}] ×${nOut || '?'}` : `×${nOut || '?'} outputs`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
@@ -1451,6 +1463,59 @@ function drawLayerNormHologram(layer, cx, cy, white) {
 
   nodeCtx.restore();
 }
+function drawFanoutHologram(layer, cx, cy, white) {
+  if (zoom < 0.28) return;
+  nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
+
+  const colorRgb = white ? '130, 0, 160' : '217, 70, 239';
+  const boxH   = layerTypes.fanout.h * zoom;
+  const flicker = 0.84 + Math.sin(time * 3.1 + layer.id * 1.6) * 0.09
+                       + Math.sin(time * 7.8 + layer.id * 0.7) * 0.04;
+  const N = Math.max(1, (_connByFrom.get(layer.id) || []).length);
+  const gap = Math.max(8, 11 * zoom);
+
+  const inW  = Math.max(10, 14 * zoom), inH = Math.max(4, 6 * zoom);
+  const fanH = Math.max(18, 26 * zoom);
+  const outW = Math.max(7, 10 * zoom), outH = inH;
+  const outGap = Math.max(3, 4 * zoom);
+  const show = Math.min(N, 5);
+  const rowW = show * (outW + outGap) - outGap;
+  const totalH = inH + fanH + outH;
+  const topY = cy - boxH / 2 - gap - totalH;
+
+  // input rect
+  nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.28 * flicker})`;
+  nodeCtx.fillRect(cx - inW / 2, topY, inW, inH);
+  nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.75 * flicker})`;
+  nodeCtx.lineWidth = 0.8; nodeCtx.strokeRect(cx - inW / 2, topY, inW, inH);
+
+  // fan lines + output rects
+  const srcY  = topY + inH;
+  const dstY  = srcY + fanH;
+  const ox0   = cx - rowW / 2 + outW / 2;
+  for (let i = 0; i < show; i++) {
+    const ox = ox0 + i * (outW + outGap);
+    nodeCtx.beginPath();
+    nodeCtx.moveTo(cx, srcY);
+    nodeCtx.lineTo(ox, dstY);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.45 * flicker})`;
+    nodeCtx.lineWidth = 0.8; nodeCtx.stroke();
+    nodeCtx.fillStyle   = `rgba(${colorRgb}, ${0.22 * flicker})`;
+    nodeCtx.fillRect(ox - outW / 2, dstY, outW, outH);
+    nodeCtx.strokeStyle = `rgba(${colorRgb}, ${0.60 * flicker})`;
+    nodeCtx.strokeRect(ox - outW / 2, dstY, outW, outH);
+  }
+
+  // ×N label when N > 5
+  if (N > 5) {
+    const fs = Math.max(6, 8 * zoom);
+    nodeCtx.font = `bold ${fs}px Courier New`; nodeCtx.textAlign = 'left'; nodeCtx.textBaseline = 'middle';
+    nodeCtx.fillStyle = `rgba(${colorRgb}, ${0.7 * flicker})`;
+    nodeCtx.fillText(`×${N}`, cx + rowW / 2 + 3, dstY + outH / 2);
+  }
+
+  nodeCtx.restore();
+}
 function drawScaleHologram(layer, cx, cy, white) {
   if (zoom < 0.28) return;
   nodeCtx.save(); nodeCtx.globalAlpha = white ? 0.88 : 0.65;
@@ -1820,6 +1885,7 @@ function draw() {
     if (l.type === 'transpose' && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawTransposeHologram(l, sx, sy, white);
     if (l.type === 'layernorm' && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawLayerNormHologram(l, sx, sy, white);
     if (l.type === 'rmsnorm'   && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawRMSNormHologram(l, sx, sy, white);
+    if (l.type === 'fanout'    && isConnected && !_hologramBlockedIds.has(l.id) && !inSuperbox) drawFanoutHologram(l, sx, sy, white);
 
     drawLayerBox(l, sx, sy);
 

@@ -286,7 +286,18 @@ function computeOutputShapes() {
 
     /* CONCAT: torch.cat — join N inputs along `dim`. All inputs must share
        ndim and match on every dim except `dim`; that dim sums. */
-    if (layer.type === 'concat') {
+    /* FANOUT: routes the same input tensor to N consumers (passthrough).
+       PyTorch equivalent: outputs = [layer(x) for layer in self.n_layers]
+       N is determined by the number of outgoing connections at draw time. */
+    if (layer.type === 'fanout') {
+      const incoming = (_connByTo.get(layerId) || []);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const srcShape = resolveShape(incoming[0].from);
+      shapeCache[layerId] = srcShape ? [...srcShape] : null;
+      return shapeCache[layerId];
+    }
+
+        if (layer.type === 'concat') {
       const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const shapes = incoming.map(c => resolveShape(c.from)).filter(Boolean);

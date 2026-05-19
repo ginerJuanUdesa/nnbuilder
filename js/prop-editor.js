@@ -440,6 +440,16 @@ function openPropEditor(layer) {
     peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
     setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
 
+  } else if (layer.type === 'fanout') {
+    peTitle.textContent = 'FANOUT';
+    const outConns = connections.filter(c => c.from === layer.id);
+    const inShape  = getDisplayShape(layer.id);
+    const inStr    = inShape ? `[${inShape.join(', ')}]` : '?';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">${inStr} → ×${outConns.length} outputs</span></div>
+      <div class="pe-hint">Routes same tensor to N connected targets.<br>
+        PyTorch: <code style="font-size:9px;">outputs = [layer(x) for layer in self.layers]</code></div>`;
+
   } else if (layer.type === 'concat') {
     peTitle.textContent = 'CONCAT';
     if (layer.dim === undefined) layer.dim = 0;

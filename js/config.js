@@ -21,6 +21,7 @@ const layerTypes = {
   rmsnorm:  { w: 140, h: 70, color: '#38bdf8', glow: '#38bdf8', bg: 'rgba(0, 25, 55, 0.97)',  lightColor: '#0369a1' },
   custom:   { w: 150, h: 78, color: '#ff5fa2', glow: '#ff5fa2', bg: 'rgba(55, 0, 28, 0.97)',  lightColor: '#c01f63' },
   concat:   { w: 140, h: 70, color: '#7d5fff', glow: '#7d5fff', bg: 'rgba(30, 15, 70, 0.97)',  lightColor: '#4b2fd0' },
+  fanout:   { w: 140, h: 70, color: '#d946ef', glow: '#d946ef', bg: 'rgba(55, 0, 65, 0.97)',  lightColor: '#a21caf' },
 };
 
 const ALL_FNS = ['none', 'relu', 'gelu', 'swiglu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'softplus', 'mish'];
