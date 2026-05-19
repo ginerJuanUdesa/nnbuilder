@@ -1052,7 +1052,8 @@ function drawAddHologram(layer, cx, cy, white) {
 /* --- Superboxes (groups): filled rect + dashed border + name label --- */
 function drawSuperboxes(white) {
   _sbEyeBtns = []; // reset each frame
-  if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)) return;
+  if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)
+      && !(selectMode && _selectStart && _selectCurrent)) return;
 
   // O(s) maps: avoid O(s^2*log s) sbsSortedByDepth + O(s) superboxes.filter per SB
   const _lChildMap = new Map();  // sbId -> child SBs[]
