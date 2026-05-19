@@ -502,6 +502,9 @@ function openPropEditor(layer) {
   } else if (layer.type === 'fanout') {
     peTitle.textContent = 'FANOUT';
     if (layer.n === undefined) layer.n = 2;
+    // change handlers re-open this editor before the draw loop recomputes;
+    // force a fresh pass so params/shape reflect the current N & flag.
+    if (typeof computeOutputShapes === 'function') { _shapesDirty = true; computeOutputShapes(); }
     const oShape  = getDisplayShape(layer.id);
     const oStr    = oShape ? `[${oShape.join(', ')}]` : '?';
     const innerT  = layer._fanoutInnerType || null;
