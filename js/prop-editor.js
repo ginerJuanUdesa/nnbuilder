@@ -513,15 +513,23 @@ function openPropEditor(layer) {
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.6);">${innerLine}</span></div>
       <div class="pe-row"><span class="pe-label">N</span><input class="pe-input" type="text" value="${layer.n}" id="pe-fanout-n" placeholder="2 or a var"></div>
-      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">out (stacked) → ${oStr} · ${prm.toLocaleString()} params</span></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">INDEPENDENT</span><input type="checkbox" id="pe-fanout-indep" ${layer.independent !== false ? 'checked' : ''} style="accent-color:#d946ef;width:14px;height:14px;cursor:pointer;"></div>
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">out (stacked) → ${oStr} · ${prm.toLocaleString()} params ${layer.independent !== false ? '(×N distinct)' : '(shared)'}</span></div>
       <div class="pe-hint">Place ONE box inside the dashed region. Simulates N
-        replicas each fed the same input; output is stacked into a NEW dim
-        at index 1 — inner [B,…] → [B, N, …]. Batch untouched.<br>
-        PyTorch: <code style="font-size:9px;">torch.stack([Inner()(x) for _ in range(N)], dim=1)</code></div>`;
+        replicas each fed the same input; output stacked into a NEW dim at
+        index 1 — inner [B,…] → [B, N, …]. Batch untouched.<br>
+        INDEPENDENT on → N distinct param sets
+        (<code style="font-size:9px;">nn.ModuleList([Inner() for _ in range(N)])</code>).
+        Off → one shared Inner reused N times (params counted once).</div>`;
     const ni = peBody.querySelector('#pe-fanout-n');
     ni.addEventListener('change', () => {
       const v = ni.value.trim();
       layer.n = /^-?\d+$/.test(v) ? Math.max(1, parseInt(v, 10)) : (v || 2);
+      saveState(); nodesDirty = true; _shapesDirty = true; openPropEditor(layer);
+    });
+    const ind = peBody.querySelector('#pe-fanout-indep');
+    ind.addEventListener('change', () => {
+      layer.independent = ind.checked;
       saveState(); nodesDirty = true; _shapesDirty = true; openPropEditor(layer);
     });
     setTimeout(() => ni.focus(), 50);

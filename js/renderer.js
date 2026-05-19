@@ -1864,7 +1864,7 @@ function draw() {
         nodeCtx.font = `bold ${fs}px Courier New`;
         nodeCtx.textAlign = 'left'; nodeCtx.textBaseline = 'top';
         nodeCtx.fillStyle = `rgba(${rgb}, 0.95)`;
-        nodeCtx.fillText(`FANOUT ×${N}`, sx + 6, sy + 5);
+        nodeCtx.fillText(`FANOUT ×${N}${f.independent === false ? ' shared' : ''}`, sx + 6, sy + 5);
         const fs2 = Math.max(7, 9.5 * zoom);
         nodeCtx.font = `${fs2}px Courier New`;
         nodeCtx.fillStyle = `rgba(${rgb}, 0.65)`;

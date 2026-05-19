@@ -531,9 +531,12 @@ function computeOutputShapes() {
     const N   = Math.max(1, resolveVal(l.n || 2) | 0);
     const syn = _connByTo.get(inner.id) || [];
     const inShape = syn.length ? shapeCache[syn[syn.length - 1].from] : null;
-    const per = _inferParams(inner, inShape);
-    l._fanoutParams    = per * N;
+    let per = _inferParams(inner, inShape);
+    if (per === 0 && inner.type === 'custom' && typeof inner._customParams === 'number') per = inner._customParams;
+    const indep = l.independent !== false; // default: distinct params per replica
+    l._fanoutParams    = per * (indep ? N : 1); // shared → counted once
     l._fanoutInnerType = inner.type;
+    l._fanoutIndep     = indep;
     totalParams += l._fanoutParams;
   }
   window._totalParams = totalParams;
