@@ -464,7 +464,7 @@ function openPropEditor(layer) {
     const inc = connections.filter(c => c.to === layer.id);
     const src = inc.length > 0 ? shapeCache[inc[inc.length - 1].from] : null;
     const inStr  = src ? `[${src.join(', ')}]` : '?';
-    const oShape = shapeCache[layer.id];
+    const oShape = getDisplayShape(layer.id);
     const outStr = oShape ? `[${oShape.join(', ')}]` : '?';
     const prm    = (typeof layer._customParams === 'number') ? layer._customParams : 0;
     const err    = layer._customErr;

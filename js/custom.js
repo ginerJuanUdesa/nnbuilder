@@ -340,6 +340,135 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
   return { outShape: outShape || null, params, error: null };
 }
 
+/* Symbolic shape: like subnetEval but keeps variable-name tokens on dims
+   the user named (input dims, linear units, conv out_channels, equal
+   concat -> "N×name"). Arithmetic ops resolve to numbers only where a
+   number is unavoidable (mirrors utils.js getDisplayShape behaviour). */
+function subnetDisplay(subnet, extDispShape, varOverrides, depth) {
+  depth = depth || 0;
+  if (depth > 8) return null;
+  const vd = validateSubnet(subnet);
+  if (!vd.ok) return null;
+  const extB = (extDispShape && extDispShape.length) ? extDispShape[0] : 32;
+  const scope = _buildScope(subnet, varOverrides,
+    (typeof extB === 'number') ? extB : 32);
+  const rv = x => _scopeResolve(scope, x, 0);          // -> number
+  const N  = v => (typeof v === 'number') ? v : rv(v); // dim token -> number
+  const tok = x => {                                   // keep var name string
+    if (typeof x === 'number') return x;
+    const str = String(x == null ? '' : x).trim();
+    if (/^-?\d+$/.test(str)) return parseInt(str, 10);
+    return str || rv(x);
+  };
+  const byId = new Map(); for (const l of subnet.layers) byId.set(l.id, l);
+  const byTo = new Map();
+  for (const c of subnet.connections) { if (!byTo.has(c.to)) byTo.set(c.to, []); byTo.get(c.to).push(c); }
+  const inc = id => byTo.get(id) || [];
+  const cache = {};
+
+  function ds(id, stack) {
+    if (id in cache) return cache[id];
+    if (stack.has(id)) { cache[id] = null; return null; }
+    stack.add(id);
+    const L = byId.get(id); let out = null;
+    if (L) {
+      const T = L.type, i = inc(id);
+      const src = i.length ? ds(i[i.length - 1].from, stack) : null;
+      if (T === 'input') {
+        out = extDispShape ? [...extDispShape] : null;
+      } else if (T === 'linear') {
+        out = src ? [...src.slice(0, -1), tok(L.units != null ? L.units : 128)]
+                  : [tok(L.units != null ? L.units : 128)];
+      } else if (T === 'conv') {
+        out = src ? [...src.slice(0, -1), tok(L.out_channels != null ? L.out_channels : 16)] : null;
+      } else if (T === 'softmax' || T === 'scale' || T === 'layernorm'
+              || T === 'rmsnorm' || T === 'output') {
+        out = src ? [...src] : null;
+      } else if (T === 'transpose') {
+        if (src) {
+          const n = src.length;
+          let d0 = L.dim0 !== undefined ? Number(L.dim0) : 0;
+          let d1 = L.dim1 !== undefined ? Number(L.dim1) : 1;
+          if (d0 < 0) d0 = n + d0; if (d1 < 0) d1 = n + d1;
+          out = [...src];
+          if (d0 >= 0 && d0 < n && d1 >= 0 && d1 < n) { const t = out[d0]; out[d0] = out[d1]; out[d1] = t; }
+        }
+      } else if (T === 'unsqueeze') {
+        if (src) {
+          const nd = src.length;
+          let d = L.dim !== undefined ? Number(L.dim) : 0;
+          const ad = d < 0 ? nd + 1 + d : d;
+          out = [...src]; out.splice(Math.max(0, Math.min(ad, nd)), 0, 1);
+        }
+      } else if (T === 'squeeze') {
+        if (src) {
+          const raw = (L.dim !== undefined && L.dim !== null && L.dim !== '') ? Number(L.dim) : null;
+          if (raw == null) { out = src.filter(v => N(v) !== 1); if (!out.length) out = [1]; }
+          else {
+            const n = src.length, d = raw < 0 ? n + raw : raw;
+            out = [...src];
+            if (d >= 0 && d < n && N(src[d]) === 1) out.splice(d, 1);
+            if (!out.length) out = [1];
+          }
+        }
+      } else if (T === 'flatten') {
+        if (src) {
+          const n = src.length;
+          const sd = L.start_dim !== undefined ? L.start_dim : 1;
+          const ed = L.end_dim !== undefined ? L.end_dim : -1;
+          const a = Math.max(0, Math.min(sd < 0 ? n + sd : sd, n - 1));
+          const e = Math.max(a, Math.min(ed < 0 ? n + ed : ed, n - 1));
+          const seg = src.slice(a, e + 1);
+          const prod = seg.every(v => typeof v === 'number')
+            ? seg.reduce((x, y) => x * y, 1)
+            : seg.join('*');
+          out = [...src.slice(0, a), prod, ...src.slice(e + 1)];
+        }
+      } else if (T === 'mean') {
+        if (src) {
+          const rd = L.reduce_dim !== undefined ? L.reduce_dim : 0;
+          const da = Array.isArray(rd) ? rd : [rd];
+          const n = src.length;
+          const nd = new Set(da.map(d => d < 0 ? n + d : d));
+          const keep = !!L.keepdim, o = [];
+          for (let k = 0; k < n; k++) { if (nd.has(k)) { if (keep) o.push(1); } else o.push(src[k]); }
+          out = o.length ? o : [1];
+        }
+      } else if (T === 'add') {
+        const sh = i.map(c => ds(c.from, stack)).filter(Boolean);
+        out = sh.length ? [...sh[0]] : null; // broadcast: first input's shape
+      } else if (T === 'matmul') {
+        const A = i.length ? ds(i[0].from, stack) : null;
+        const B = i.length > 1 ? ds(i[1].from, stack) : null;
+        if (A && B && A.length >= 2 && B.length >= 2)
+          out = [...A.slice(0, -2), A[A.length - 2], B[B.length - 1]];
+      } else if (T === 'concat') {
+        const sh = i.map(c => ds(c.from, stack)).filter(Boolean);
+        if (sh.length) {
+          const nd = sh[0].length;
+          let d = L.dim !== undefined ? Number(L.dim) : 0;
+          if (d < 0) d = nd + d;
+          if (sh.every(x => x.length === nd) && d >= 0 && d < nd) {
+            out = [...sh[0]];
+            const col = sh.map(x => x[d]);
+            out[d] = (col.length > 1 && col.every(v => v === col[0])) ? `${col.length}×${col[0]}`
+                   : col.every(v => typeof v === 'number') ? col.reduce((a, b) => a + b, 0)
+                   : col.join('+');
+          }
+        }
+      } else if (T === 'custom') {
+        out = L.subnet ? subnetDisplay(L.subnet, src, L.varOverrides, depth + 1) : null;
+      } else if (src) {
+        out = [...src];
+      }
+    }
+    stack.delete(id);
+    cache[id] = out;
+    return out;
+  }
+  return ds(vd.terminalId, new Set());
+}
+
 function renderCustomPalette() {
   const wrap = document.getElementById('custom-items');
   if (!wrap) return;

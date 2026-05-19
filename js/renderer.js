@@ -421,7 +421,7 @@ function drawLayerBox(layer, cx, cy) {
           : nodeCtx.fillText(text, cx, baseY);
 
       } else if (layer.type === 'custom') {
-        const oShape = shapeCache[layer.id];
+        const oShape = getDisplayShape(layer.id);
         const prm    = (typeof layer._customParams === 'number') ? layer._customParams : null;
         const text   = oShape
           ? `[${oShape.join(', ')}]${prm != null ? ' · ' + prm.toLocaleString() + 'p' : ''}`

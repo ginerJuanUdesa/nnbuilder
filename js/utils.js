@@ -202,6 +202,15 @@ function _computeDisplayShape(layerId) {
     const batchOut = padA.map((a, i) => (a === 1 || a === '1') ? padB[i] : a);
     return [...batchOut, n, p];
   }
+  if (layer.type === 'custom') {
+    const cInc = (_connByTo.get(layerId) || []);
+    const extDisp = cInc.length ? getDisplayShape(cInc[cInc.length - 1].from) : null;
+    if (layer.subnet && typeof subnetDisplay === 'function') {
+      const d = subnetDisplay(layer.subnet, extDisp, layer.varOverrides);
+      if (d) return d;
+    }
+    return resolved;
+  }
   if (layer.type === 'concat') {
     const inc = (_connByTo.get(layerId) || []);
     if (inc.length === 0) return resolved;
