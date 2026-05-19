@@ -93,10 +93,11 @@ window.addEventListener('mousedown', e => {
   const [wx, wy] = screenToWorld(e.clientX, e.clientY);
   const hit = hitTestLayer(wx, wy);
   if (hit) {
-    if (e.shiftKey) {
-      // Shift+click: toggle in multi-selection without starting drag
+    if (e.shiftKey || e.ctrlKey || e.metaKey) {
+      // Shift/Ctrl/Cmd+click: toggle in multi-selection without starting drag
       if (selectedLayerIds.has(hit.id)) selectedLayerIds.delete(hit.id);
       else selectedLayerIds.add(hit.id);
+      selectedLayerId = hit.id; selectedConnIdx = -1; // keep prop editor in sync
       nodesDirty = true; return;
     }
     if (selectedLayerIds.size >= 1 && selectedLayerIds.has(hit.id)) {
