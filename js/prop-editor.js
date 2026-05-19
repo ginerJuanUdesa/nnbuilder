@@ -444,6 +444,7 @@ function openPropEditor(layer) {
     peTitle.textContent = 'TRIU';
     if (!layer.dims) layer.dims = [1, 1];
     if (layer.diagonal === undefined) layer.diagonal = 0;
+    if (layer.upper === undefined) layer.upper = true; // upper-triangular (triu) by default; false = tril
     const dc = document.createElement('div'); dc.id = 'pe-triu-dims';
     function renderTD() {
       dc.innerHTML = '';
@@ -473,14 +474,14 @@ function openPropEditor(layer) {
     wrap.innerHTML = `
       <div class="pe-hint">torch.triu(torch.ones(*dims), diagonal) — upper-triangular ones. Source node (no batch dim).</div>
       <div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIAGONAL</span><input class="pe-input" type="number" step="1" value="${layer.diagonal}" id="pe-triu-diag"></div>
-      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">AS BOOL</span><input type="checkbox" id="pe-triu-bool" ${layer.as_bool ? 'checked' : ''} style="accent-color:#a3e635;width:14px;height:14px;cursor:pointer;"></div>`;
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">UPPER TRI</span><input type="checkbox" id="pe-triu-bool" ${layer.upper ? 'checked' : ''} style="accent-color:#a3e635;width:14px;height:14px;cursor:pointer;"></div>`;
     peBody.appendChild(dc);
     peBody.appendChild(wrap);
     wrap.querySelector('#pe-triu-diag').addEventListener('change', e => {
       layer.diagonal = parseInt(e.target.value, 10) || 0; saveState(); nodesDirty = true; _shapesDirty = true;
     });
     wrap.querySelector('#pe-triu-bool').addEventListener('change', e => {
-      layer.as_bool = e.target.checked; saveState(); nodesDirty = true;
+      layer.upper = e.target.checked; saveState(); nodesDirty = true;
     });
     setTimeout(() => { const f = dc.querySelector('.pe-input'); if (f) f.focus(); }, 50);
 

@@ -456,7 +456,8 @@ function drawLayerBox(layer, cx, cy) {
       } else if (layer.type === 'triu') {
         const dd = getDisplayShape(layer.id);
         const dg = layer.diagonal !== undefined ? layer.diagonal : 0;
-        const text = `${dd ? '['+dd.join(', ')+']' : '?'} Δ${dg}${layer.as_bool ? ' bool' : ''}`;
+        const _up = layer.upper !== false;
+        const text = `${dd ? '['+dd.join(', ')+']' : '?'} ${_up ? 'triu' : 'tril'} Δ${dg}`;
         const shift = shiftFor(countLines(text, boxHalfW * 2));
         drawTitle(shift);
         const baseY = baseY0 - shift;
