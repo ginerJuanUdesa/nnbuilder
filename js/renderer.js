@@ -1624,17 +1624,32 @@ function draw() {
   for (const _l of layers) _layerById.set(_l.id, _l);
 
   /* Two-pass connection drawing:
-     Pass 1 — WITH clip: cross-boundary conns (one endpoint hidden).
-               Clip hides the inside-group segment; external segment visible.
+     Pass 1 — WITH clip: cross-boundary conns.
+               Clip hides inside-group segments; between/outside segments visible.
      Pass 2 — NO clip:   both-visible conns.
-               Always fully drawn even if Bezier curves through a group rect. */
+               Always fully drawn even if Bezier curves through a group rect.
+     Special: both-hidden in DIFFERENT collapsed groups → pass 1 (middle segment shown). */
+  // Walk up ancestry to find the collapsed SB responsible for hiding a layer
+  const _collapsedAncestor = lid => {
+    let s = _sbLayerMap.get(lid);
+    while (s) {
+      if (_collapsedSbIds.has(s.id)) return s.id;
+      const pid = _sbParentMap.get(s.id);
+      s = pid ? superboxes.find(x => x.id === pid) : null;
+    }
+    return null;
+  };
   const _crossBoundary = [], _fullyVisible = [];
   for (let ci = 0; ci < connections.length; ci++) {
     const c = connections[ci];
     const fl = _layerById.get(c.from), tl = _layerById.get(c.to);
     if (!fl || !tl) continue;
     const fH = _layerHidden(c.from), tH = _layerHidden(c.to);
-    if (fH && tH) continue; // both hidden — skip
+    if (fH && tH) {
+      // Both hidden: skip only if same collapsed ancestor (whole conn inside one group)
+      if (_collapsedAncestor(c.from) !== _collapsedAncestor(c.to)) _crossBoundary.push(ci);
+      continue;
+    }
     if (fH || tH) _crossBoundary.push(ci); else _fullyVisible.push(ci);
   }
 
