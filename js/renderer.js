@@ -1869,8 +1869,8 @@ function draw() {
 
     drawLayerBox(l, sx, sy);
 
-    // multi-select highlight ring
-    if (typeof selectedLayerIds !== 'undefined' && selectedLayerIds.has(l.id)) {
+    // selection highlight ring (single click OR multi-select)
+    if ((typeof selectedLayerIds !== 'undefined' && selectedLayerIds.has(l.id)) || l.id === selectedLayerId) {
       const _mst = layerTypes[l.type];
       const _msw = _mst.w * zoom, _msh = _mst.h * zoom;
       const _msPulse = 0.55 + 0.45 * Math.sin(time * 5.5 + l.id * 0.9);
