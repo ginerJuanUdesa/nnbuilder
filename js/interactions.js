@@ -462,6 +462,7 @@ window.addEventListener('mouseup', e => {
         customName:   entry.name,
         subnet:       JSON.parse(JSON.stringify(entry.subnet)),
         varOverrides: {},
+        customColor:  entry.color || null,
       });
       selectedLayerId = layers[layers.length - 1].id;
       saveState();

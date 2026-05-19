@@ -121,7 +121,7 @@ function drawLayerBox(layer, cx, cy) {
   const x = cx - w / 2, y = cy - h / 2;
   const white = document.body.classList.contains('white-mode');
 
-  const tColor = white && t.lightColor ? t.lightColor : t.color;
+  let tColor = white && t.lightColor ? t.lightColor : t.color;
   let fillStyle = t.bg;
   if (white) {
     const bgMap = {
@@ -144,6 +144,21 @@ function drawLayerBox(layer, cx, cy) {
       concat:   'rgba(222, 214, 255, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
+  }
+  // Custom box: override tColor + bg from layer.customColor
+  if (layer.type === 'custom' && layer.customColor) {
+    const _cc = layer.customColor;
+    const _cp = _cc.slice(1).match(/.{2}/g).map(x => parseInt(x, 16));
+    if (white) {
+      // tColor: darken by 62%
+      tColor = '#' + _cp.map(c => Math.round(c * 0.62).toString(16).padStart(2, '0')).join('');
+      // bg: pastel — mix with white 77/23
+      fillStyle = `rgba(${Math.round(255*0.77+_cp[0]*0.23)}, ${Math.round(255*0.77+_cp[1]*0.23)}, ${Math.round(255*0.77+_cp[2]*0.23)}, 0.97)`;
+    } else {
+      tColor = _cc;
+      // bg: 22% of color channels (dark tint)
+      fillStyle = `rgba(${Math.round(_cp[0]*0.22)}, ${Math.round(_cp[1]*0.22)}, ${Math.round(_cp[2]*0.22)}, 0.97)`;
+    }
   }
   nodeCtx.fillStyle = fillStyle;
   nodeCtx.fillRect(x, y, w, h);
@@ -1797,7 +1812,13 @@ function draw() {
       const t = layerTypes[l.type];
       const w = t.w * zoom, h = t.h * zoom;
       const pulse = Math.sin(time * 6) * 0.3 + 0.7;
-      const tColorRing = white && t.lightColor ? t.lightColor : t.color;
+      let tColorRing = white && t.lightColor ? t.lightColor : t.color;
+      if (l.type === 'custom' && l.customColor) {
+        const _rcp = l.customColor.slice(1).match(/.{2}/g).map(x => parseInt(x, 16));
+        tColorRing = white
+          ? '#' + _rcp.map(c => Math.round(c * 0.62).toString(16).padStart(2, '0')).join('')
+          : l.customColor;
+      }
       const ringColor = white ? `rgba(${hexToRgb(tColorRing)}, ${pulse * 0.7})` : `rgba(${hexToRgb(tColorRing)}, ${pulse})`;
       nodeCtx.strokeStyle = ringColor;
       nodeCtx.lineWidth   = 3; nodeCtx.setLineDash([4, 4]);

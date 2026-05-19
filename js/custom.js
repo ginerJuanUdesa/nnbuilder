@@ -469,6 +469,36 @@ function subnetDisplay(subnet, extDispShape, varOverrides, depth) {
   return ds(vd.terminalId, new Set());
 }
 
+/* ── Dominant color of a subnet ───────────────────────────────────────────
+   1. If subnet has superboxes: color of the largest one (SUPERBOX_COLORS).
+   2. Otherwise: color of the most frequent non-structural layer type.      */
+function _computeCustomColor(subnet) {
+  const sbs = subnet.superboxes || [];
+  if (sbs.length > 0) {
+    let best = null, bestCnt = -1;
+    for (const sb of sbs) {
+      const cnt = (sb.layerIds || []).length;
+      if (cnt > bestCnt) { bestCnt = cnt; best = sb; }
+    }
+    if (best !== null && typeof SUPERBOX_COLORS !== 'undefined') {
+      return SUPERBOX_COLORS[(best.colorIdx ?? 0) % SUPERBOX_COLORS.length];
+    }
+  }
+  const freq = {};
+  for (const l of (subnet.layers || [])) {
+    if (l.type === 'input' || l.type === 'output') continue;
+    freq[l.type] = (freq[l.type] || 0) + 1;
+  }
+  let topType = null, topCnt = 0;
+  for (const [tp, cnt] of Object.entries(freq)) {
+    if (cnt > topCnt) { topCnt = cnt; topType = tp; }
+  }
+  if (topType && typeof layerTypes !== 'undefined' && layerTypes[topType]) {
+    return layerTypes[topType].color;
+  }
+  return '#ff5fa2'; // fallback
+}
+
 function renderCustomPalette() {
   const wrap = document.getElementById('custom-items');
   if (!wrap) return;
@@ -483,6 +513,11 @@ function renderCustomPalette() {
       '<div class="name">' + entry.name + '</div>' +
       '<div class="desc">' + nLayers + ' layers · custom</div>' +
       '<span class="custom-del" title="Remove from palette">×</span>';
+    if (entry.color) {
+      item.style.borderColor = entry.color + '66';
+      const _nameEl = item.querySelector('.name');
+      if (_nameEl) _nameEl.style.color = entry.color;
+    }
     item.addEventListener('mousedown', e => {
       e.preventDefault(); e.stopPropagation();
       if (e.target.classList.contains('custom-del')) {
@@ -520,10 +555,12 @@ function loadCustomNnb() {
           layers:      data.layers || [],
           connections: data.connections || [],
           variables:   data.variables || [],
+          superboxes:  data.superboxes || [],
         };
+        const color = _computeCustomColor(subnet);
         const existing = customLibrary.findIndex(c => c.name === name);
-        if (existing >= 0) customLibrary[existing] = { name, subnet };
-        else customLibrary.push({ name, subnet });
+        if (existing >= 0) customLibrary[existing] = { name, subnet, color };
+        else customLibrary.push({ name, subnet, color });
         _saveCustomLibrary();
         renderCustomPalette();
       } catch (err) {
