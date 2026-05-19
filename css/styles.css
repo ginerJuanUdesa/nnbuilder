@@ -473,6 +473,10 @@ body.white-mode .palette-item.type-matmul    .name { color: #c06400; }
 .palette-item.type-custom .name { color: #ff5fa2; }
 body.white-mode .palette-item.type-custom { background: rgba(255, 95, 162, 0.08); border-color: rgba(192, 31, 99, 0.4); }
 body.white-mode .palette-item.type-custom .name { color: #c01f63; }
+.palette-item.type-concat { border-color: rgba(125, 95, 255, 0.4); }
+.palette-item.type-concat .name { color: #7d5fff; }
+body.white-mode .palette-item.type-concat { background: rgba(125, 95, 255, 0.08); border-color: rgba(75, 47, 208, 0.4); }
+body.white-mode .palette-item.type-concat .name { color: #4b2fd0; }
 .palette-item.type-custom .custom-del {
   position: absolute; top: 4px; right: 6px; color: #ff5fa2;
   font-size: 13px; line-height: 1; cursor: pointer; opacity: 0.55;

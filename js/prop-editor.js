@@ -440,6 +440,25 @@ function openPropEditor(layer) {
     peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
     setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
 
+  } else if (layer.type === 'concat') {
+    peTitle.textContent = 'CONCAT';
+    if (layer.dim === undefined) layer.dim = 0;
+    const inc = connections.filter(c => c.to === layer.id);
+    const inStrs = inc.map(c => { const sh = shapeCache[c.from]; return sh ? `[${sh.join(', ')}]` : '—'; });
+    const out = shapeCache[layer.id];
+    const outStr = out ? `[${out.join(', ')}]` : '?';
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(125,95,255,0.55);">${inc.length} in → ${outStr}</span></div>
+      <div class="pe-row"><span class="pe-label">DIM</span><input class="pe-input" type="number" step="1" value="${layer.dim}" id="pe-cat-dim"></div>
+      <div class="pe-hint">torch.cat — joins inputs along DIM (negative ok). All other dims must match.</div>
+      <div class="pe-hint" style="font-size:9px;opacity:0.6;">${inStrs.join('  ·  ') || 'no inputs'}</div>`;
+    const di = peBody.querySelector('#pe-cat-dim');
+    di.addEventListener('change', () => {
+      const v = di.value.trim();
+      layer.dim = v === '' ? 0 : (parseInt(v, 10) || 0);
+      saveState(); nodesDirty = true; openPropEditor(layer);
+    });
+    setTimeout(() => di.focus(), 50);
   } else if (layer.type === 'custom') {
     peTitle.textContent = (layer.customName || 'CUSTOM').toUpperCase();
     const inc = connections.filter(c => c.to === layer.id);

@@ -197,6 +197,29 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
       const i = inc(id);
       const src = i.length ? rs(i[i.length - 1].from, stack) : null;
       out = src ? [...src] : null;
+    } else if (T === 'concat') {
+      const i = inc(id);
+      const shapes = i.map(c => rs(c.from, stack)).filter(Boolean);
+      if (!shapes.length) out = null;
+      else {
+        const nd = shapes[0].length;
+        if (!shapes.every(sh => sh.length === nd)) out = null;
+        else {
+          let d = layer.dim !== undefined ? rv(layer.dim) : 0;
+          if (d < 0) d = nd + d;
+          if (d < 0 || d >= nd) out = null;
+          else {
+            let ok = true;
+            for (let k = 0; k < nd && ok; k++) {
+              if (k === d) continue;
+              const v0 = shapes[0][k];
+              if (!shapes.every(sh => sh[k] === v0)) ok = false;
+            }
+            if (!ok) out = null;
+            else { out = [...shapes[0]]; out[d] = shapes.reduce((a, sh) => a + sh[d], 0); }
+          }
+        }
+      }
     } else if (T === 'add') {
       const i = inc(id);
       const shapes = i.map(c => rs(c.from, stack)).filter(Boolean);

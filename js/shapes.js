@@ -284,6 +284,29 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* CONCAT: torch.cat — join N inputs along `dim`. All inputs must share
+       ndim and match on every dim except `dim`; that dim sums. */
+    if (layer.type === 'concat') {
+      const incoming = (_connByTo.get(layerId) || []);
+      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
+      const shapes = incoming.map(c => resolveShape(c.from)).filter(Boolean);
+      if (shapes.length === 0) { shapeCache[layerId] = null; return null; }
+      const nd = shapes[0].length;
+      if (!shapes.every(sh => sh.length === nd)) { shapeCache[layerId] = null; return null; }
+      let d = layer.dim !== undefined ? resolveVal(layer.dim) : 0;
+      if (d < 0) d = nd + d;
+      if (d < 0 || d >= nd) { shapeCache[layerId] = null; return null; }
+      for (let k = 0; k < nd; k++) {
+        if (k === d) continue;
+        const v0 = shapes[0][k];
+        if (!shapes.every(sh => sh[k] === v0)) { shapeCache[layerId] = null; return null; }
+      }
+      const out = [...shapes[0]];
+      out[d] = shapes.reduce((a, sh) => a + sh[d], 0);
+      shapeCache[layerId] = out;
+      return shapeCache[layerId];
+    }
+
     /* CUSTOM: composite box — shape & params from embedded subnet */
     if (layer.type === 'custom') {
       const incoming = (_connByTo.get(layerId) || []);
