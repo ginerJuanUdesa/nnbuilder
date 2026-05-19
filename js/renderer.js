@@ -146,6 +146,7 @@ function drawLayerBox(layer, cx, cy) {
       fanout:   'rgba(245, 210, 255, 0.97)',
       triu:     'rgba(228, 245, 200, 0.97)',
       maskedfill:'rgba(252, 215, 222, 0.97)',
+      reshape:  'rgba(200, 240, 236, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -453,6 +454,16 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
+      } else if (layer.type === 'reshape') {
+        const od = getDisplayShape(layer.id);
+        const text = od ? `[${od.join(', ')}]` : '?';
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
       } else if (layer.type === 'triu') {
         const dd = getDisplayShape(layer.id);
         const dg = layer.diagonal !== undefined ? layer.diagonal : 0;

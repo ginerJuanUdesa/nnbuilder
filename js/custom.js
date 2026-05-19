@@ -121,6 +121,21 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
       const i = inc(id);
       out = i.length ? rs(i[0].from, stack) : null;
       if (out) out = [...out];
+    } else if (T === 'reshape') {
+      const i = inc(id);
+      const src = i.length ? rs(i[i.length - 1].from, stack) : null;
+      if (!src || !src.length) out = null;
+      else {
+        const B = src[0], numel = src.slice(1).reduce((a, b) => a * b, 1);
+        const raw = (layer.dims && layer.dims.length) ? layer.dims : [-1];
+        let pk = 1, ix = -1;
+        const dd = raw.map((d, k) => {
+          if (d === -1 || String(d).trim() === '-1') { ix = k; return -1; }
+          const v = rv(d); pk *= v; return v;
+        });
+        if (ix >= 0) dd[ix] = Math.max(1, Math.round(numel / (pk || 1)));
+        out = [B, ...dd];
+      }
     } else if (T === 'custom') {
       const i = inc(id);
       const src = i.length ? rs(i[i.length - 1].from, stack) : null;
@@ -402,6 +417,11 @@ function subnetDisplay(subnet, extDispShape, varOverrides, depth) {
       } else if (T === 'maskedfill') {
         const m0 = i[0] ? ds(i[0].from, stack) : null;
         out = m0 ? [...m0] : (src ? [...src] : null);
+      } else if (T === 'reshape') {
+        if (src && src.length) {
+          const raw = (L.dims && L.dims.length) ? L.dims : [-1];
+          out = [src[0], ...raw.map(d => (d === -1 || String(d).trim() === '-1') ? '-1' : d)];
+        } else out = null;
       } else if (T === 'linear') {
         out = src ? [...src.slice(0, -1), tok(L.units != null ? L.units : 128)]
                   : [tok(L.units != null ? L.units : 128)];

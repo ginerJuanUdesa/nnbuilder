@@ -499,6 +499,48 @@ function openPropEditor(layer) {
     vi.addEventListener('change', () => { layer.value = vi.value.trim() || '-inf'; saveState(); nodesDirty = true; });
     setTimeout(() => vi.focus(), 50);
 
+  } else if (layer.type === 'reshape') {
+    peTitle.textContent = 'RESHAPE';
+    if (!layer.dims) layer.dims = [-1];
+    const inc = connections.filter(c => c.to === layer.id);
+    const src = inc.length ? shapeCache[inc[inc.length - 1].from] : null;
+    const inStr = src ? `[${src.join(', ')}]` : '?';
+    const oShape = getDisplayShape(layer.id);
+    const oStr = oShape ? `[${oShape.join(', ')}]` : '?';
+    const dc = document.createElement('div'); dc.id = 'pe-rs-dims';
+    function renderRS() {
+      dc.innerHTML = '';
+      const info = document.createElement('div'); info.className = 'pe-row';
+      info.innerHTML = `<span class="pe-label" style="font-size:9px;color:rgba(20,184,166,0.6);">${inStr} → ${oStr}</span>`;
+      dc.appendChild(info);
+      const bRow = document.createElement('div'); bRow.className = 'pe-dim-row pe-dim-row-batch';
+      bRow.innerHTML = '<span class="pe-dim-label">D0</span><span class="pe-input pe-input-locked">BATCH</span>';
+      dc.appendChild(bRow);
+      layer.dims.forEach((d, i) => {
+        const row = document.createElement('div'); row.className = 'pe-dim-row';
+        const lab = document.createElement('span'); lab.className = 'pe-dim-label'; lab.textContent = `D${i + 1}`;
+        const inp = document.createElement('input'); inp.className = 'pe-input'; inp.type = 'text'; inp.value = d;
+        inp.addEventListener('change', () => {
+          const raw = inp.value.trim();
+          layer.dims[i] = (raw === '-1') ? -1 : ((raw !== '' && !isNaN(raw)) ? Math.max(1, parseInt(raw) || 1) : raw);
+          saveState(); nodesDirty = true; _shapesDirty = true; openPropEditor(layer);
+        });
+        row.appendChild(lab); row.appendChild(inp);
+        if (layer.dims.length > 1) {
+          const rm = document.createElement('span'); rm.className = 'pe-dim-remove'; rm.textContent = '\u00d7';
+          rm.addEventListener('click', () => { layer.dims.splice(i, 1); saveState(); _shapesDirty = true; openPropEditor(layer); });
+          row.appendChild(rm);
+        }
+        dc.appendChild(row);
+      });
+      const ab = document.createElement('div'); ab.className = 'pe-add-btn'; ab.textContent = '+ ADD DIM';
+      ab.addEventListener('click', () => { layer.dims.push(-1); saveState(); _shapesDirty = true; openPropEditor(layer); });
+      dc.appendChild(ab);
+    }
+    renderRS();
+    peBody.appendChild(dc);
+    setTimeout(() => { const f = dc.querySelector('input.pe-input'); if (f) f.focus(); }, 50);
+
   } else if (layer.type === 'fanout') {
     peTitle.textContent = 'FANOUT';
     if (layer.n === undefined) layer.n = 2;

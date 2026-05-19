@@ -490,6 +490,10 @@ body.white-mode .palette-item.type-triu .name { color: #5e8a00; }
 .palette-item.type-maskedfill .name { color: #fb7185; }
 body.white-mode .palette-item.type-maskedfill { background: rgba(251, 113, 133, 0.08); border-color: rgba(190, 18, 60, 0.4); }
 body.white-mode .palette-item.type-maskedfill .name { color: #be123c; }
+.palette-item.type-reshape    { border-color: rgba(20, 184, 166, 0.4); }
+.palette-item.type-reshape    .name { color: #14b8a6; }
+body.white-mode .palette-item.type-reshape { background: rgba(20, 184, 166, 0.08); border-color: rgba(15, 118, 110, 0.4); }
+body.white-mode .palette-item.type-reshape .name { color: #0f766e; }
 .palette-item.type-custom .custom-del {
   position: absolute; top: 4px; right: 6px; color: #ff5fa2;
   font-size: 13px; line-height: 1; cursor: pointer; opacity: 0.55;

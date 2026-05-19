@@ -144,6 +144,27 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* RESHAPE: torch.reshape / .view. Target dims define the NON-batch
+       shape; batch (dim 0) is always preserved. One -1 is inferred from
+       the incoming non-batch element count. */
+    if (layer.type === 'reshape') {
+      const inc = (_connByTo.get(layerId) || []);
+      if (inc.length === 0) { shapeCache[layerId] = null; return null; }
+      const src = resolveShape(inc[inc.length - 1].from);
+      if (!src || src.length === 0) { shapeCache[layerId] = null; return null; }
+      const B = src[0];
+      const numel = src.slice(1).reduce((a, b) => a * b, 1);
+      const raw = (layer.dims && layer.dims.length) ? layer.dims : [-1];
+      let prodKnown = 1, infIdx = -1;
+      const dims = raw.map((d, i) => {
+        if (d === -1 || String(d).trim() === '-1') { infIdx = i; return -1; }
+        const v = resolveVal(d); prodKnown *= v; return v;
+      });
+      if (infIdx >= 0) dims[infIdx] = Math.max(1, Math.round(numel / (prodKnown || 1)));
+      shapeCache[layerId] = [B, ...dims];
+      return shapeCache[layerId];
+    }
+
     /* FLATTEN: PyTorch nn.Flatten semantics — default start_dim=1 preserves batch at dim 0.
        end_dim=-1 → flatten all dims from start_dim onward */
     if (layer.type === 'flatten') {

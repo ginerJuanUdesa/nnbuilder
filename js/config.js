@@ -24,6 +24,7 @@ const layerTypes = {
   fanout:   { w: 280, h: 170, color: '#d946ef', glow: '#d946ef', bg: 'rgba(55, 0, 65, 0.97)',  lightColor: '#a21caf' },
   triu:     { w: 140, h: 70, color: '#a3e635', glow: '#a3e635', bg: 'rgba(35, 50, 0, 0.97)',   lightColor: '#5e8a00' },
   maskedfill:{ w: 140, h: 70, color: '#fb7185', glow: '#fb7185', bg: 'rgba(60, 10, 20, 0.97)',  lightColor: '#be123c' },
+  reshape:  { w: 140, h: 70, color: '#14b8a6', glow: '#14b8a6', bg: 'rgba(0, 45, 42, 0.97)',   lightColor: '#0f766e' },
 };
 
 const ALL_FNS = ['none', 'relu', 'gelu', 'swiglu', 'sigmoid', 'tanh', 'leaky_relu', 'elu', 'selu', 'softplus', 'mish'];
