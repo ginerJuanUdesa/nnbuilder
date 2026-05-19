@@ -675,7 +675,8 @@ window.addEventListener('mouseup', e => {
     const layer = layers.find(l => l.id === layerDragId);
     if (layer) {
       const snappedX = snapToGrid(layer.x), snappedY = snapToGrid(layer.y);
-      if (overlapsAny(snappedX, snappedY, layer.id)) { layer.x = layerDragOrigX; layer.y = layerDragOrigY; }
+      // fanout is a container — never overlap-reverted (its inner box would block it)
+      if (layer.type !== 'fanout' && overlapsAny(snappedX, snappedY, layer.id)) { layer.x = layerDragOrigX; layer.y = layerDragOrigY; }
       else { layer.x = snappedX; layer.y = snappedY; }
 
       // Sync superbox membership: layer goes into deepest containing SB only

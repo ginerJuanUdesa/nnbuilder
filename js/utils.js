@@ -248,6 +248,7 @@ function _computeDisplayShape(layerId) {
 function overlapsAny(wx, wy, excludeId) {
   for (const l of layers) {
     if (l.id === excludeId) continue;
+    if (l.type === 'fanout') continue; // container: boxes are meant to sit inside it
     const t = layerTypes[l.type];
     if (Math.abs(wx - l.x) < t.w && Math.abs(wy - l.y) < t.h) return true;
   }
@@ -255,8 +256,18 @@ function overlapsAny(wx, wy, excludeId) {
 }
 
 function hitTestLayer(wx, wy) {
+  // pass 1: non-container layers (so a box inside a FANOUT is grabbable)
   for (let i = layers.length - 1; i >= 0; i--) {
     const l = layers[i];
+    if (l.type === 'fanout') continue;
+    const t = layerTypes[l.type];
+    const hw = t.w / 2, hh = t.h / 2;
+    if (wx >= l.x - hw && wx <= l.x + hw && wy >= l.y - hh && wy <= l.y + hh) return l;
+  }
+  // pass 2: fanout containers (fallback — empty area inside one selects it)
+  for (let i = layers.length - 1; i >= 0; i--) {
+    const l = layers[i];
+    if (l.type !== 'fanout') continue;
     const t = layerTypes[l.type];
     const hw = t.w / 2, hh = t.h / 2;
     if (wx >= l.x - hw && wx <= l.x + hw && wy >= l.y - hh && wy <= l.y + hh) return l;
