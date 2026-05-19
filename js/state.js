@@ -22,6 +22,7 @@ const layers      = [];
 const connections = [];
 let variables     = [];
 let nextId        = 1;
+let nextConnSeq   = 1; // monotonic per-connection creation order (matmul A@B etc.)
 
 /* Selection */
 let selectedLayerId = null;

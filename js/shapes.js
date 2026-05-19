@@ -29,6 +29,11 @@ function computeOutputShapes() {
     if (!_connByFrom.has(c.from)) _connByFrom.set(c.from, []);
     _connByFrom.get(c.from).push(c);
   }
+  // Order incoming edges by creation order (seq) so non-commutative
+  // multi-input ops resolve correctly (matmul A@B, concat order, …).
+  for (const arr of _connByTo.values()) {
+    arr.sort((a, b) => ((a.seq != null ? a.seq : 0) - (b.seq != null ? b.seq : 0)));
+  }
 
   /* ── FANOUT containment ──────────────────────────────────────────────
      FANOUT is a container region holding exactly ONE inner box (by

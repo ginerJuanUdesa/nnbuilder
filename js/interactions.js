@@ -38,6 +38,7 @@ window.addEventListener('mousedown', e => {
             from: connectStartId, to: hit.id,
             fromSide: connectStartSide || 'r',
             toSide:   nearestSide(hit, wx, wy),       // end at side-centre nearest the click
+            seq: nextConnSeq++,
           });
           saveState();
           connectionMode = false;
@@ -811,6 +812,7 @@ function pasteMulti() {
   for (const c of pConns) {
     const nc = { ...JSON.parse(JSON.stringify(c)), from: layerIdMap[c.from], to: layerIdMap[c.to] };
     if (nc.elbowX !== undefined) nc.elbowX += dx;
+    nc.seq = nextConnSeq++;
     connections.push(nc);
   }
 
@@ -913,6 +915,7 @@ function pasteSuperbox() {
       to:   layerIdMap[c.to],
     };
     if (nc.elbowX !== undefined) nc.elbowX += dx;
+    nc.seq = nextConnSeq++;
     connections.push(nc);
   }
 

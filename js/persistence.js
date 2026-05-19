@@ -2,12 +2,24 @@
    persistence.js — save/load, undo/redo
    ============================================================ */
 
+/* Ensure every connection has a numeric `seq` (creation order). Legacy
+   saves / pastes get seq = current array index so existing order is kept.
+   Order matters for non-commutative multi-input ops (matmul A@B, concat). */
+function _ensureConnSeq() {
+  let mx = 0;
+  connections.forEach((c, i) => {
+    if (typeof c.seq !== 'number') c.seq = i;
+    if (c.seq > mx) mx = c.seq;
+  });
+  if (typeof nextConnSeq !== 'number' || nextConnSeq <= mx) nextConnSeq = mx + 1;
+}
+
 const undoStack = [];
 const redoStack = [];
 let _prevSnap   = null;
 
 function _snap() {
-  return JSON.stringify({ layers, connections, nextId, variables, superboxes });
+  return JSON.stringify({ layers, connections, nextId, nextConnSeq, variables, superboxes });
 }
 
 function _applySnap(raw) {
@@ -17,6 +29,8 @@ function _applySnap(raw) {
   variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
   superboxes.length  = 0; (data.superboxes  || []).forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
   nextId     = data.nextId || 1;
+  nextConnSeq = data.nextConnSeq || 1;
+  _ensureConnSeq();
   ensureBatchVar();
   if (typeof syncAll === 'function') syncAll();
   nodesDirty = true;
@@ -27,7 +41,7 @@ function _applySnap(raw) {
 function _persistLocal() {
   try {
     localStorage.setItem('nn-grid', JSON.stringify({
-      layers, connections, nextId, camX, camY, zoom, variables, superboxes
+      layers, connections, nextId, nextConnSeq, camX, camY, zoom, variables, superboxes
     }));
   } catch (e) {}
 }
@@ -85,12 +99,14 @@ function loadState() {
       if (data.variables) variables.push(...data.variables);
       if (data.superboxes) data.superboxes.forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
       nextId = data.nextId || 1;
+      nextConnSeq = data.nextConnSeq || 1;
       camX   = data.camX  || 0;
       camY   = data.camY  || 0;
       zoom   = data.zoom  || 1;
     }
     ensureBatchVar(); if (typeof syncAll === 'function') syncAll();
   } catch (e) { ensureBatchVar(); }
+  _ensureConnSeq();
   _shapesDirty = true;
   _prevSnap = _snap(); // baseline so first action pushes correctly
 }
@@ -105,6 +121,7 @@ function exportToFile() {
     layers,
     connections,
     nextId,
+    nextConnSeq,
     variables,
     superboxes,
     camera: { x: camX, y: camY, zoom }
@@ -148,6 +165,8 @@ function importFromFile() {
         variables.length   = 0; (data.variables   || []).forEach(v => variables.push(v));
         superboxes.length  = 0; (data.superboxes  || []).forEach(s => { if (s.parentId === undefined) s.parentId = null; superboxes.push(s); });
         nextId = data.nextId || 1;
+        nextConnSeq = data.nextConnSeq || 1;
+        _ensureConnSeq();
         if (data.camera) { camX = data.camera.x || 0; camY = data.camera.y || 0; zoom = data.camera.zoom || 1; }
         ensureBatchVar(); if (typeof syncAll === 'function') syncAll();
         _prevSnap  = _snap();
