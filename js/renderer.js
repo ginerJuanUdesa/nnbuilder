@@ -1622,74 +1622,100 @@ function draw() {
   // Layer-by-id map: O(1) lookup instead of O(n) layers.find per connection
   const _layerById = new Map();
   for (const _l of layers) _layerById.set(_l.id, _l);
+
+  /* Two-pass connection drawing:
+     Pass 1 — WITH clip: cross-boundary conns (one endpoint hidden).
+               Clip hides the inside-group segment; external segment visible.
+     Pass 2 — NO clip:   both-visible conns.
+               Always fully drawn even if Bezier curves through a group rect. */
+  const _crossBoundary = [], _fullyVisible = [];
   for (let ci = 0; ci < connections.length; ci++) {
-    const c         = connections[ci];
-    const fromLayer = _layerById.get(c.from);
-    const toLayer   = _layerById.get(c.to);
-    if (!fromLayer || !toLayer) continue;
-    // Skip connections where either endpoint is inside a collapsed (hidden) SB
-    if (_layerHidden(c.from) || _layerHidden(c.to)) continue;
-
-    // Viewport cull: skip connections whose endpoint bbox is fully off-screen.
-    // (Selected conn always drawn so its delete/drag handles stay reachable.)
-    if (ci !== selectedConnIdx) {
-      const [_fx, _fy] = worldToScreen(fromLayer.x, fromLayer.y);
-      const [_tx, _ty] = worldToScreen(toLayer.x, toLayer.y);
-      const _cm = 120; // margin for elbow overshoot + labels
-      const _minX = Math.min(_fx, _tx) - _cm, _maxX = Math.max(_fx, _tx) + _cm;
-      const _minY = Math.min(_fy, _ty) - _cm, _maxY = Math.max(_fy, _ty) + _cm;
-      if (_maxX < 0 || _minX > W || _maxY < 0 || _minY > H) continue;
-    }
-
-    const path       = buildConnPath(fromLayer, toLayer, c);
-    const ft         = layerTypes[fromLayer.type];
-    const isSelected = ci === selectedConnIdx;
-    const col        = isSelected ? (white ? 'rgba(0,0,0,0.9)' : 'rgba(255, 255, 255, 0.9)') : connGradient(path, white);
-    drawPath(path, col, isSelected ? '#ffffff' : ft.color, isSelected ? 3.5 : 2);
-
-    const _eitherInSB = _layerHidden(c.from) || _layerHidden(c.to);
-    if (c.paramLabel && zoom > 0.3 && !_eitherInSB) {
-      const midPt    = { x: path[1].x, y: (path[1].y + path[2].y) / 2 };
-      const fontSize = Math.max(8, Math.min(11, 10 * zoom));
-      nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'center';
-      const paramColor = document.body.classList.contains('white-mode') ? '#b89000' : '#ffc800';
-      const paramColorDim = document.body.classList.contains('white-mode') ? 'rgba(180, 140, 0, 0.6)' : 'rgba(255, 200, 0, 0.6)';
-      if (c.paramLabelTop) {
-        nodeCtx.textBaseline = 'bottom'; nodeCtx.fillStyle = paramColor;
-        nodeCtx.fillText(c.paramLabelTop, midPt.x, midPt.y - 2);
-      }
-      nodeCtx.textBaseline = 'top'; nodeCtx.fillStyle = paramColorDim;
-      nodeCtx.fillText(c.paramLabel, midPt.x, midPt.y + 2);
-    }
-
-    if (isSelected) {
-      const midPt = path[1], btnR = Math.max(10, 12 * zoom);
-      const bx = midPt.x + btnR + 4, by = midPt.y - btnR - 4;
-      nodeCtx.beginPath(); nodeCtx.arc(bx, by, btnR, 0, Math.PI * 2);
-      nodeCtx.fillStyle = 'rgba(255, 50, 50, 0.85)'; nodeCtx.fill();
-      nodeCtx.strokeStyle = '#ff5050'; nodeCtx.lineWidth = 2; nodeCtx.stroke();
-      nodeCtx.strokeStyle = '#fff'; nodeCtx.lineWidth = 2; nodeCtx.beginPath();
-      nodeCtx.moveTo(bx - btnR * 0.4, by - btnR * 0.4); nodeCtx.lineTo(bx + btnR * 0.4, by + btnR * 0.4);
-      nodeCtx.moveTo(bx + btnR * 0.4, by - btnR * 0.4); nodeCtx.lineTo(bx - btnR * 0.4, by + btnR * 0.4);
-      nodeCtx.stroke();
-
-      // ↔ drag handle on middle vertical segment
-      const hx = path[1].x, hy = (path[1].y + path[2].y) / 2;
-      const hr = Math.max(5, 6 * zoom);
-      nodeCtx.beginPath(); nodeCtx.arc(hx, hy, hr, 0, Math.PI * 2);
-      nodeCtx.fillStyle = white ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.18)'; nodeCtx.fill();
-      nodeCtx.strokeStyle = white ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)';
-      nodeCtx.lineWidth = 1.5; nodeCtx.stroke();
-      const ar = Math.max(3, 3.5 * zoom);
-      nodeCtx.strokeStyle = white ? 'rgba(0,0,0,0.8)' : '#fff';
-      nodeCtx.lineWidth = 1.5; nodeCtx.beginPath();
-      nodeCtx.moveTo(hx - ar * 2, hy); nodeCtx.lineTo(hx - ar, hy - ar * 0.6);
-      nodeCtx.moveTo(hx - ar * 2, hy); nodeCtx.lineTo(hx - ar, hy + ar * 0.6);
-      nodeCtx.moveTo(hx + ar * 2, hy); nodeCtx.lineTo(hx + ar, hy - ar * 0.6);
-      nodeCtx.moveTo(hx + ar * 2, hy); nodeCtx.lineTo(hx + ar, hy + ar * 0.6);
-      nodeCtx.stroke();
-    }
+    const c = connections[ci];
+    const fl = _layerById.get(c.from), tl = _layerById.get(c.to);
+    if (!fl || !tl) continue;
+    const fH = _layerHidden(c.from), tH = _layerHidden(c.to);
+    if (fH && tH) continue; // both hidden — skip
+    if (fH || tH) _crossBoundary.push(ci); else _fullyVisible.push(ci);
   }
+
+  function _drawConnBatch(indices, clipped) {
+    if (indices.length === 0) return;
+    if (clipped && _sbCollapsed) {
+      nodeCtx.save();
+      nodeCtx.beginPath();
+      nodeCtx.rect(-1, -1, nodeCanvas.width + 2, nodeCanvas.height + 2);
+      for (const sb of _collapsedHoles) {
+        const [_sx, _sy] = worldToScreen(sb.x, sb.y);
+        nodeCtx.rect(_sx, _sy, sb.w * zoom, sb.h * zoom);
+      }
+      nodeCtx.clip('evenodd');
+    }
+    for (const ci of indices) {
+      const c         = connections[ci];
+      const fromLayer = _layerById.get(c.from);
+      const toLayer   = _layerById.get(c.to);
+      // Viewport cull (selected conn always drawn so handles stay reachable)
+      if (ci !== selectedConnIdx) {
+        const [_fx, _fy] = worldToScreen(fromLayer.x, fromLayer.y);
+        const [_tx, _ty] = worldToScreen(toLayer.x, toLayer.y);
+        const _cm = 120;
+        const _minX = Math.min(_fx, _tx) - _cm, _maxX = Math.max(_fx, _tx) + _cm;
+        const _minY = Math.min(_fy, _ty) - _cm, _maxY = Math.max(_fy, _ty) + _cm;
+        if (_maxX < 0 || _minX > W || _maxY < 0 || _minY > H) continue;
+      }
+      const path       = buildConnPath(fromLayer, toLayer, c);
+      const ft         = layerTypes[fromLayer.type];
+      const isSelected = ci === selectedConnIdx;
+      const col        = isSelected ? (white ? 'rgba(0,0,0,0.9)' : 'rgba(255, 255, 255, 0.9)') : connGradient(path, white);
+      drawPath(path, col, isSelected ? '#ffffff' : ft.color, isSelected ? 3.5 : 2);
+
+      const _eitherInSB = _layerHidden(c.from) || _layerHidden(c.to);
+      if (c.paramLabel && zoom > 0.3 && !_eitherInSB) {
+        const midPt    = { x: path[1].x, y: (path[1].y + path[2].y) / 2 };
+        const fontSize = Math.max(8, Math.min(11, 10 * zoom));
+        nodeCtx.font = `${fontSize}px Courier New`; nodeCtx.textAlign = 'center';
+        const paramColor = document.body.classList.contains('white-mode') ? '#b89000' : '#ffc800';
+        const paramColorDim = document.body.classList.contains('white-mode') ? 'rgba(180, 140, 0, 0.6)' : 'rgba(255, 200, 0, 0.6)';
+        if (c.paramLabelTop) {
+          nodeCtx.textBaseline = 'bottom'; nodeCtx.fillStyle = paramColor;
+          nodeCtx.fillText(c.paramLabelTop, midPt.x, midPt.y - 2);
+        }
+        nodeCtx.textBaseline = 'top'; nodeCtx.fillStyle = paramColorDim;
+        nodeCtx.fillText(c.paramLabel, midPt.x, midPt.y + 2);
+      }
+
+      if (isSelected) {
+        const midPt = path[1], btnR = Math.max(10, 12 * zoom);
+        const bx = midPt.x + btnR + 4, by = midPt.y - btnR - 4;
+        nodeCtx.beginPath(); nodeCtx.arc(bx, by, btnR, 0, Math.PI * 2);
+        nodeCtx.fillStyle = 'rgba(255, 50, 50, 0.85)'; nodeCtx.fill();
+        nodeCtx.strokeStyle = '#ff5050'; nodeCtx.lineWidth = 2; nodeCtx.stroke();
+        nodeCtx.strokeStyle = '#fff'; nodeCtx.lineWidth = 2; nodeCtx.beginPath();
+        nodeCtx.moveTo(bx - btnR * 0.4, by - btnR * 0.4); nodeCtx.lineTo(bx + btnR * 0.4, by + btnR * 0.4);
+        nodeCtx.moveTo(bx + btnR * 0.4, by - btnR * 0.4); nodeCtx.lineTo(bx - btnR * 0.4, by + btnR * 0.4);
+        nodeCtx.stroke();
+        // ↔ drag handle
+        const hx = path[1].x, hy = (path[1].y + path[2].y) / 2;
+        const hr = Math.max(5, 6 * zoom);
+        nodeCtx.beginPath(); nodeCtx.arc(hx, hy, hr, 0, Math.PI * 2);
+        nodeCtx.fillStyle = white ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.18)'; nodeCtx.fill();
+        nodeCtx.strokeStyle = white ? 'rgba(0,0,0,0.55)' : 'rgba(255,255,255,0.55)';
+        nodeCtx.lineWidth = 1.5; nodeCtx.stroke();
+        const ar = Math.max(3, 3.5 * zoom);
+        nodeCtx.strokeStyle = white ? 'rgba(0,0,0,0.8)' : '#fff';
+        nodeCtx.lineWidth = 1.5; nodeCtx.beginPath();
+        nodeCtx.moveTo(hx - ar * 2, hy); nodeCtx.lineTo(hx - ar, hy - ar * 0.6);
+        nodeCtx.moveTo(hx - ar * 2, hy); nodeCtx.lineTo(hx - ar, hy + ar * 0.6);
+        nodeCtx.moveTo(hx + ar * 2, hy); nodeCtx.lineTo(hx + ar, hy - ar * 0.6);
+        nodeCtx.moveTo(hx + ar * 2, hy); nodeCtx.lineTo(hx + ar, hy + ar * 0.6);
+        nodeCtx.stroke();
+      }
+    }
+    if (clipped && _sbCollapsed) nodeCtx.restore();
+  }
+
+  _drawConnBatch(_crossBoundary, true);   // clipped — cross-boundary
+  _drawConnBatch(_fullyVisible, false);   // unclipped — both endpoints visible
 
 
   // draw superboxes (below layers)
