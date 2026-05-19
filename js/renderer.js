@@ -144,6 +144,8 @@ function drawLayerBox(layer, cx, cy) {
       custom:   'rgba(255, 210, 230, 0.97)',
       concat:   'rgba(222, 214, 255, 0.97)',
       fanout:   'rgba(245, 210, 255, 0.97)',
+      triu:     'rgba(228, 245, 200, 0.97)',
+      maskedfill:'rgba(252, 215, 222, 0.97)',
     };
     fillStyle = bgMap[layer.type] || fillStyle;
   }
@@ -451,6 +453,28 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
+      } else if (layer.type === 'triu') {
+        const dd = getDisplayShape(layer.id);
+        const dg = layer.diagonal !== undefined ? layer.diagonal : 0;
+        const text = `${dd ? '['+dd.join(', ')+']' : '?'} Δ${dg}${layer.as_bool ? ' bool' : ''}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
+      } else if (layer.type === 'maskedfill') {
+        const od = getDisplayShape(layer.id);
+        const v  = layer.value !== undefined ? layer.value : '-inf';
+        const text = `${od ? '['+od.join(', ')+']' : '?'} ←${v}`;
+        const shift = shiftFor(countLines(text, boxHalfW * 2));
+        drawTitle(shift);
+        const baseY = baseY0 - shift;
+        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
+        nodeCtx.measureText(text).width > boxHalfW * 2
+          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
+          : nodeCtx.fillText(text, cx, baseY);
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';

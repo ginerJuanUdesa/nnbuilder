@@ -104,6 +104,13 @@ function _computeDisplayShape(layerId) {
   if (layer.type === 'input') {
     return ['BATCH', ...(layer.dims || []).map(d => d)]; // BATCH always prepended as dim 0
   }
+  if (layer.type === 'triu') {
+    return (layer.dims && layer.dims.length) ? layer.dims.map(d => d) : [1, 1];
+  }
+  if (layer.type === 'maskedfill') {
+    const inc = (_connByTo.get(layerId) || []);
+    return inc.length > 0 ? getDisplayShape(inc[0].from) : resolved;
+  }
   if (layer.type === 'linear' || layer.type === 'shared_dense') {
     const inc = (_connByTo.get(layerId) || []);
     const srcDisp = inc.length > 0 ? getDisplayShape(inc[0].from) : null;
@@ -404,24 +411,26 @@ function isHologramBlocked(layer) {
 function canConnect(from, to) {
   if (from.id === to.id) return false;
   return (
-    (from.type === 'input'     && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'linear'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'mean'      && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'flatten'   && ['linear', 'mean', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'conv'      && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'unsqueeze' && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'squeeze'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'softmax'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'add'       && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'matmul'       && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'scale'     && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'transpose' && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'output'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'layernorm'  && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'rmsnorm'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'custom'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'concat'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type)) ||
-    (from.type === 'fanout'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout'].includes(to.type))
+    (from.type === 'input'     && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'linear'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'mean'      && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'flatten'   && ['linear', 'mean', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'conv'      && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'unsqueeze' && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'squeeze'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'softmax'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'add'       && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'matmul'       && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'scale'     && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'transpose' && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'output'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'layernorm'  && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'rmsnorm'   && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'custom'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'concat'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'fanout'    && ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'triu'      && ['output', 'matmul', 'add', 'scale', 'transpose', 'unsqueeze', 'squeeze', 'concat', 'fanout', 'custom', 'maskedfill'].includes(to.type)) ||
+    (from.type === 'maskedfill'&& ['linear', 'mean', 'flatten', 'output', 'conv', 'unsqueeze', 'squeeze', 'softmax', 'add', 'matmul', 'scale', 'transpose', 'layernorm', 'rmsnorm', 'custom', 'concat', 'fanout', 'maskedfill'].includes(to.type))
   );
 }
 

@@ -109,6 +109,24 @@ function computeOutputShapes() {
       return shapeCache[layerId];
     }
 
+    /* TRIU: torch.triu(torch.ones(*dims), diagonal). Source node — own dims
+       (no batch prepended; it's a mask/constant). bool flag = dtype only. */
+    if (layer.type === 'triu') {
+      const dd = (layer.dims && layer.dims.length) ? layer.dims.map(resolveVal) : [1, 1];
+      shapeCache[layerId] = dd;
+      return shapeCache[layerId];
+    }
+
+    /* MASKED_FILL: scores.masked_fill(mask, value). Input 0 = scores (shape
+       kept), input 1 = mask (broadcast). Output = scores shape. */
+    if (layer.type === 'maskedfill') {
+      const inc = (_connByTo.get(layerId) || []);
+      if (inc.length === 0) { shapeCache[layerId] = null; return null; }
+      const sc = resolveShape(inc[0].from);
+      shapeCache[layerId] = sc ? [...sc] : null;
+      return shapeCache[layerId];
+    }
+
     /* FLATTEN: PyTorch nn.Flatten semantics — default start_dim=1 preserves batch at dim 0.
        end_dim=-1 → flatten all dims from start_dim onward */
     if (layer.type === 'flatten') {

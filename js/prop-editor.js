@@ -440,6 +440,65 @@ function openPropEditor(layer) {
     peBody.querySelector('#pe-scale-factor').addEventListener('change', e => { layer.factor = e.target.value.trim(); saveState(); nodesDirty = true; });
     setTimeout(() => peBody.querySelector('#pe-scale-factor').focus(), 50);
 
+  } else if (layer.type === 'triu') {
+    peTitle.textContent = 'TRIU';
+    if (!layer.dims) layer.dims = [1, 1];
+    if (layer.diagonal === undefined) layer.diagonal = 0;
+    const dc = document.createElement('div'); dc.id = 'pe-triu-dims';
+    function renderTD() {
+      dc.innerHTML = '';
+      layer.dims.forEach((d, i) => {
+        const row = document.createElement('div'); row.className = 'pe-dim-row';
+        const lab = document.createElement('span'); lab.className = 'pe-dim-label'; lab.textContent = `D${i}`;
+        const inp = document.createElement('input'); inp.className = 'pe-input'; inp.type = 'text'; inp.value = d;
+        inp.addEventListener('change', () => {
+          const raw = inp.value.trim();
+          layer.dims[i] = (raw !== '' && !isNaN(raw)) ? Math.max(1, parseInt(raw) || 1) : raw;
+          saveState(); nodesDirty = true; _shapesDirty = true;
+        });
+        row.appendChild(lab); row.appendChild(inp);
+        if (layer.dims.length > 1) {
+          const rm = document.createElement('span'); rm.className = 'pe-dim-remove'; rm.textContent = '\u00d7';
+          rm.addEventListener('click', () => { layer.dims.splice(i, 1); saveState(); _shapesDirty = true; openPropEditor(layer); });
+          row.appendChild(rm);
+        }
+        dc.appendChild(row);
+      });
+      const ab = document.createElement('div'); ab.className = 'pe-add-btn'; ab.textContent = '+ ADD DIM';
+      ab.addEventListener('click', () => { layer.dims.push(1); saveState(); _shapesDirty = true; openPropEditor(layer); });
+      dc.appendChild(ab);
+    }
+    renderTD();
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `
+      <div class="pe-hint">torch.triu(torch.ones(*dims), diagonal) — upper-triangular ones. Source node (no batch dim).</div>
+      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">DIAGONAL</span><input class="pe-input" type="number" step="1" value="${layer.diagonal}" id="pe-triu-diag"></div>
+      <div class="pe-row" style="margin-top:4px;"><span class="pe-label">AS BOOL</span><input type="checkbox" id="pe-triu-bool" ${layer.as_bool ? 'checked' : ''} style="accent-color:#a3e635;width:14px;height:14px;cursor:pointer;"></div>`;
+    peBody.appendChild(dc);
+    peBody.appendChild(wrap);
+    wrap.querySelector('#pe-triu-diag').addEventListener('change', e => {
+      layer.diagonal = parseInt(e.target.value, 10) || 0; saveState(); nodesDirty = true; _shapesDirty = true;
+    });
+    wrap.querySelector('#pe-triu-bool').addEventListener('change', e => {
+      layer.as_bool = e.target.checked; saveState(); nodesDirty = true;
+    });
+    setTimeout(() => { const f = dc.querySelector('.pe-input'); if (f) f.focus(); }, 50);
+
+  } else if (layer.type === 'maskedfill') {
+    peTitle.textContent = 'MASKED_FILL';
+    if (layer.value === undefined) layer.value = '-inf';
+    const inc = connections.filter(c => c.to === layer.id);
+    const sStr = inc[0] ? `[${(shapeCache[inc[0].from]||['?']).join(', ')}]` : '?';
+    const mStr = inc[1] ? `[${(shapeCache[inc[1].from]||['?']).join(', ')}]` : '(no mask)';
+    const oShape = getDisplayShape(layer.id);
+    peBody.innerHTML = `
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(251,113,133,0.6);">scores ${sStr} · mask ${mStr} → ${oShape ? '['+oShape.join(', ')+']' : '?'}</span></div>
+      <div class="pe-row" style="margin-top:6px;"><span class="pe-label">VALUE</span><input class="pe-input" type="text" value="${layer.value}" id="pe-mf-val" placeholder="-inf or 0"></div>
+      <div class="pe-hint">scores.masked_fill(mask, value) — input 0 = scores, input 1 = mask. Fills where mask is True.</div>`;
+    const vi = peBody.querySelector('#pe-mf-val');
+    vi.addEventListener('change', () => { layer.value = vi.value.trim() || '-inf'; saveState(); nodesDirty = true; });
+    setTimeout(() => vi.focus(), 50);
+
   } else if (layer.type === 'fanout') {
     peTitle.textContent = 'FANOUT';
     if (layer.n === undefined) layer.n = 2;

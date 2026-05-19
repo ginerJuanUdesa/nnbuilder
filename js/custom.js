@@ -115,6 +115,12 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
 
     if (T === 'input') {
       out = extInShape ? [...extInShape] : null;
+    } else if (T === 'triu') {
+      out = (layer.dims && layer.dims.length) ? layer.dims.map(rv) : [1, 1];
+    } else if (T === 'maskedfill') {
+      const i = inc(id);
+      out = i.length ? rs(i[0].from, stack) : null;
+      if (out) out = [...out];
     } else if (T === 'custom') {
       const i = inc(id);
       const src = i.length ? rs(i[i.length - 1].from, stack) : null;
@@ -391,6 +397,11 @@ function subnetDisplay(subnet, extDispShape, varOverrides, depth) {
       const src = i.length ? ds(i[i.length - 1].from, stack) : null;
       if (T === 'input') {
         out = extDispShape ? [...extDispShape] : null;
+      } else if (T === 'triu') {
+        out = (L.dims && L.dims.length) ? L.dims.map(d => d) : [1, 1];
+      } else if (T === 'maskedfill') {
+        const m0 = i[0] ? ds(i[0].from, stack) : null;
+        out = m0 ? [...m0] : (src ? [...src] : null);
       } else if (T === 'linear') {
         out = src ? [...src.slice(0, -1), tok(L.units != null ? L.units : 128)]
                   : [tok(L.units != null ? L.units : 128)];
