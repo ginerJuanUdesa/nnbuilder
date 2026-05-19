@@ -446,10 +446,14 @@ function computeOutputShapes() {
 
   /* Parameter counting: weight = (out, in), bias = (out,) — matches PyTorch convention */
   let totalParams = 0;
+  // FANOUT owns its inner box's params exclusively (counted ×N in the
+  // post-pass). Exclude inner boxes from per-connection and custom passes.
+  const _fanoutInnerIds = new Set([..._fanoutInnerMap.values()].map(x => x.id));
   for (const c of connections) {
     const toLayer   = _layerById.get(c.to);
     const fromShape = shapeCache[c.from];
     if (!toLayer || !fromShape) { c.paramCount = 0; c.paramLabel = ''; c.paramLabelTop = ''; continue; }
+    if (_fanoutInnerIds.has(c.to)) { c.paramCount = 0; c.paramLabel = ''; c.paramLabelTop = ''; continue; }
     if (toLayer.type === 'linear') {
       const units       = resolveVal(toLayer.units || 128);
       const inFeatures  = fromShape[fromShape.length - 1] || 1; // last dim = in_features
@@ -522,7 +526,7 @@ function computeOutputShapes() {
     }
   }
   for (const l of layers) {
-    if (l.type === 'custom' && typeof l._customParams === 'number') totalParams += l._customParams;
+    if (l.type === 'custom' && !_fanoutInnerIds.has(l.id) && typeof l._customParams === 'number') totalParams += l._customParams;
   }
   for (const l of layers) {
     if (l.type !== 'fanout') { continue; }
