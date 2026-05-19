@@ -407,7 +407,7 @@ function drawLayerBox(layer, cx, cy) {
 
       } else if (layer.type === 'concat') {
         const inc = (_connByTo.get(layer.id) || []);
-        const out = shapeCache[layer.id];
+        const out = getDisplayShape(layer.id);
         const dStr = layer.dim !== undefined ? layer.dim : 0;
         const text = out
           ? `cat dim=${dStr} → [${out.join(', ')}]`

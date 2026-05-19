@@ -214,9 +214,13 @@ function _computeDisplayShape(layerId) {
     if (d < 0 || d >= nd) return resolved;
     const out = [...ds[0]];
     const col = ds.map(s2 => s2[d]);
-    out[d] = col.every(v => typeof v === 'number')
-      ? col.reduce((a, b) => a + b, 0)
-      : col.join('+');
+    if (col.length > 1 && col.every(v => v === col[0])) {
+      out[d] = `${col.length}×${col[0]}`;          // N identical → "6×size"
+    } else if (col.every(v => typeof v === 'number')) {
+      out[d] = col.reduce((a, b) => a + b, 0);          // mixed numeric → sum
+    } else {
+      out[d] = col.join('+');                            // symbolic → a+b+...
+    }
     return out;
   }
   if (layer.type === 'output') {

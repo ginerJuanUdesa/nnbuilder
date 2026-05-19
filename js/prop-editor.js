@@ -445,7 +445,7 @@ function openPropEditor(layer) {
     if (layer.dim === undefined) layer.dim = 0;
     const inc = connections.filter(c => c.to === layer.id);
     const inStrs = inc.map(c => { const sh = shapeCache[c.from]; return sh ? `[${sh.join(', ')}]` : '—'; });
-    const out = shapeCache[layer.id];
+    const out = getDisplayShape(layer.id);
     const outStr = out ? `[${out.join(', ')}]` : '?';
     peBody.innerHTML = `
       <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(125,95,255,0.55);">${inc.length} in → ${outStr}</span></div>
