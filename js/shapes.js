@@ -3,6 +3,7 @@ let shapeCache = {};
 let _dispCache = {}; // per-frame memo for getDisplayShape (cleared with shapeCache)
 let _connByTo = new Map(); // c.to -> [conns], rebuilt when graph changes
 let _connByFrom = new Map(); // c.from -> [conns], rebuilt when graph changes
+let _fanoutInnerMap = new Map(); // fanoutId -> inner layer (geometry), for display side
 
 /* Simple per-layer shape (no graph traversal) — used as fallback */
 function getLayerShape(layer) {
@@ -27,6 +28,89 @@ function computeOutputShapes() {
     _connByTo.get(c.to).push(c);
     if (!_connByFrom.has(c.from)) _connByFrom.set(c.from, []);
     _connByFrom.get(c.from).push(c);
+  }
+
+  /* ── FANOUT containment ──────────────────────────────────────────────
+     FANOUT is a container region holding exactly ONE inner box (by
+     geometry: inner box centre within the fanout's rectangle). It
+     simulates N replicas of that inner box, each receiving the fanout's
+     input. The fanout's outgoing edge is expanded to N edges so any
+     consumer (CONCAT joins N, ADD sums N, …) sees N inputs.
+     PyTorch equivalent (future):
+       self.branch = nn.ModuleList([Inner() for _ in range(N)])
+       outs = [b(x) for b in self.branch]            # then cat/add/… */
+  _fanoutInnerMap = new Map();
+  const _innerToFanout = new Map();
+  for (const f of layers) {
+    if (f.type !== 'fanout') continue;
+    const ft = layerTypes.fanout;
+    const fw = (f.w || ft.w), fh = (f.h || ft.h);
+    const x0 = f.x - fw / 2, x1 = f.x + fw / 2;
+    const y0 = f.y - fh / 2, y1 = f.y + fh / 2;
+    let inner = null;
+    for (const l of layers) {
+      if (l.id === f.id || l.type === 'fanout') continue;
+      if (l.x >= x0 && l.x <= x1 && l.y >= y0 && l.y <= y1) { inner = l; break; }
+    }
+    if (inner) { _fanoutInnerMap.set(f.id, inner); _innerToFanout.set(inner.id, f); }
+  }
+  // inner box with no real incoming edge → fed by the fanout's input source
+  for (const [innerId, f] of _innerToFanout) {
+    if ((_connByTo.get(innerId) || []).length > 0) continue;
+    const fIn = _connByTo.get(f.id) || [];
+    if (fIn.length === 0) continue;
+    _connByTo.set(innerId, [{ from: fIn[fIn.length - 1].from, to: innerId, _synthetic: true }]);
+  }
+  // expand each fanout's outgoing edge ×N so consumers see N parallel inputs
+  for (const [toId, conns] of [..._connByTo.entries()]) {
+    let out = null;
+    for (let i = 0; i < conns.length; i++) {
+      const fromL = _layerById.get(conns[i].from);
+      if (fromL && fromL.type === 'fanout') {
+        const N = Math.max(1, resolveVal(fromL.n || 2) | 0);
+        if (N > 1) {
+          if (!out) out = conns.slice();
+          const idx = out.indexOf(conns[i]);
+          out.splice(idx, 1, ...Array.from({ length: N }, () => conns[i]));
+        }
+      }
+    }
+    if (out) _connByTo.set(toId, out);
+  }
+
+  /* Per-layer param count given an explicit input shape (for FANOUT inner). */
+  function _inferParams(layer, inShape) {
+    if (!inShape || !inShape.length) return 0;
+    if (layer.type === 'linear') {
+      const units = resolveVal(layer.units || 128);
+      const inF   = inShape[inShape.length - 1] || 1;
+      return inF * units + (layer.bias !== false ? units : 0);
+    }
+    if (layer.type === 'conv') {
+      const oc = resolveVal(layer.out_channels || 16);
+      const gr = resolveVal(layer.groups || 1);
+      const ndim = layer.ndim !== undefined ? layer.ndim : 2;
+      const cIn = inShape[inShape.length - (ndim + 1)] || 1;
+      const rawKs = layer.kernel_size !== undefined ? layer.kernel_size : 3;
+      const ksArr = Array.isArray(rawKs) ? rawKs.map(v => resolveVal(v)) : Array(ndim).fill(resolveVal(rawKs));
+      const ksP = ksArr.reduce((a, b) => a * b, 1);
+      return oc * (cIn / gr) * ksP + oc;
+    }
+    if (layer.type === 'layernorm' && layer.elementwise_affine !== false) {
+      const rawNS = layer.normalized_shape;
+      const ns = rawNS !== undefined
+        ? (Array.isArray(rawNS) ? rawNS.map(v => resolveVal(v)).reduce((a, b) => a * b, 1) : resolveVal(rawNS))
+        : (inShape[inShape.length - 1] || 1);
+      return 2 * ns;
+    }
+    if (layer.type === 'rmsnorm' && layer.elementwise_affine !== false) {
+      const rawNS = layer.normalized_shape;
+      const ns = rawNS !== undefined
+        ? (Array.isArray(rawNS) ? rawNS.map(v => resolveVal(v)).reduce((a, b) => a * b, 1) : resolveVal(rawNS))
+        : (inShape[inShape.length - 1] || 1);
+      return ns;
+    }
+    return 0;
   }
 
   function resolveShape(layerId) {
@@ -286,14 +370,14 @@ function computeOutputShapes() {
 
     /* CONCAT: torch.cat — join N inputs along `dim`. All inputs must share
        ndim and match on every dim except `dim`; that dim sums. */
-    /* FANOUT: routes the same input tensor to N consumers (passthrough).
-       PyTorch equivalent: outputs = [layer(x) for layer in self.n_layers]
-       N is determined by the number of outgoing connections at draw time. */
+    /* FANOUT: container holding one inner box, simulated ×N.
+       Output shape = the inner box's output (single replica). The ×N
+       multiplication happens on the *outgoing* edge (expanded above), so
+       a downstream CONCAT/ADD naturally sees N inputs. */
     if (layer.type === 'fanout') {
-      const incoming = (_connByTo.get(layerId) || []);
-      if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
-      const srcShape = resolveShape(incoming[0].from);
-      shapeCache[layerId] = srcShape ? [...srcShape] : null;
+      const inner = _fanoutInnerMap.get(layerId);
+      if (!inner) { shapeCache[layerId] = null; return null; }
+      shapeCache[layerId] = resolveShape(inner.id);
       return shapeCache[layerId];
     }
 
@@ -428,6 +512,18 @@ function computeOutputShapes() {
   }
   for (const l of layers) {
     if (l.type === 'custom' && typeof l._customParams === 'number') totalParams += l._customParams;
+  }
+  for (const l of layers) {
+    if (l.type !== 'fanout') { continue; }
+    const inner = _fanoutInnerMap.get(l.id);
+    if (!inner) { l._fanoutParams = 0; l._fanoutInnerType = null; continue; }
+    const N   = Math.max(1, resolveVal(l.n || 2) | 0);
+    const syn = _connByTo.get(inner.id) || [];
+    const inShape = syn.length ? shapeCache[syn[syn.length - 1].from] : null;
+    const per = _inferParams(inner, inShape);
+    l._fanoutParams    = per * N;
+    l._fanoutInnerType = inner.type;
+    totalParams += l._fanoutParams;
   }
   window._totalParams = totalParams;
 }

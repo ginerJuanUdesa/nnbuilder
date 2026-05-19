@@ -231,10 +231,14 @@ function subnetEval(subnet, extInShape, varOverrides, depth) {
         }
       }
     } else if (T === 'fanout') {
-      // passthrough — same tensor to N consumers
-      // PyTorch: outputs = [layer(x) for layer in self.n_layers]
+      // FANOUT container: holds one inner box (geometry), simulated xN.
+      // Inside a custom subnet we approximate the fanout's *single-replica*
+      // output as its input shape passthrough. NOTE: if a shape-changing box
+      // (linear/conv) is placed inside a fanout that itself lives inside a
+      // custom subnet, this is approximate — the main-canvas engine handles
+      // the exact case. Subnet+fanout nesting is an edge case.
       const i = inc(id);
-      out = i.length ? rs(i[0].from, stack) : null;
+      out = i.length ? rs(i[i.length - 1].from, stack) : null;
       if (out) out = [...out];
     } else if (T === 'add') {
       const i = inc(id);

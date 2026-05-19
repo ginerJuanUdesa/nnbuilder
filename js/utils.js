@@ -211,6 +211,11 @@ function _computeDisplayShape(layerId) {
     }
     return resolved;
   }
+  if (layer.type === 'fanout') {
+    // container box → display the contained inner box's shape (single replica)
+    const inner = (typeof _fanoutInnerMap !== 'undefined') ? _fanoutInnerMap.get(layerId) : null;
+    return inner ? getDisplayShape(inner.id) : resolved;
+  }
   if (layer.type === 'concat') {
     const inc = (_connByTo.get(layerId) || []);
     if (inc.length === 0) return resolved;

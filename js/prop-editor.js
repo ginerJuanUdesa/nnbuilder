@@ -442,13 +442,29 @@ function openPropEditor(layer) {
 
   } else if (layer.type === 'fanout') {
     peTitle.textContent = 'FANOUT';
-    const outConns = connections.filter(c => c.from === layer.id);
-    const inShape  = getDisplayShape(layer.id);
-    const inStr    = inShape ? `[${inShape.join(', ')}]` : '?';
+    if (layer.n === undefined) layer.n = 2;
+    const oShape  = getDisplayShape(layer.id);
+    const oStr    = oShape ? `[${oShape.join(', ')}]` : '?';
+    const innerT  = layer._fanoutInnerType || null;
+    const prm     = (typeof layer._fanoutParams === 'number') ? layer._fanoutParams : 0;
+    const innerLine = innerT
+      ? `<span style="color:#22c55e;">inner: ${innerT}</span>`
+      : `<span style="color:#ef4444;">no box inside — drop one in</span>`;
     peBody.innerHTML = `
-      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">${inStr} → ×${outConns.length} outputs</span></div>
-      <div class="pe-hint">Routes same tensor to N connected targets.<br>
-        PyTorch: <code style="font-size:9px;">outputs = [layer(x) for layer in self.layers]</code></div>`;
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.6);">${innerLine}</span></div>
+      <div class="pe-row"><span class="pe-label">N</span><input class="pe-input" type="text" value="${layer.n}" id="pe-fanout-n" placeholder="2 or a var"></div>
+      <div class="pe-row"><span class="pe-label" style="font-size:9px;color:rgba(217,70,239,0.55);">out → ${oStr} ×N · ${prm.toLocaleString()} params</span></div>
+      <div class="pe-hint">Place ONE box inside the dashed region. Simulates N
+        replicas each fed the same input; the outgoing edge acts as N edges
+        (CONCAT joins N, ADD sums N, …).<br>
+        PyTorch: <code style="font-size:9px;">[Inner() for _ in range(N)]</code> then cat/add</div>`;
+    const ni = peBody.querySelector('#pe-fanout-n');
+    ni.addEventListener('change', () => {
+      const v = ni.value.trim();
+      layer.n = /^-?\d+$/.test(v) ? Math.max(1, parseInt(v, 10)) : (v || 2);
+      saveState(); nodesDirty = true; _shapesDirty = true; openPropEditor(layer);
+    });
+    setTimeout(() => ni.focus(), 50);
 
   } else if (layer.type === 'concat') {
     peTitle.textContent = 'CONCAT';

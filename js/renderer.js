@@ -113,6 +113,7 @@ function drawPath(pts, color, glow, width, dash) {
 
 /* --- Layer box --- */
 function drawLayerBox(layer, cx, cy) {
+  if (layer.type === 'fanout') return; // container drawn in fanout pre-pass
   const t    = layerTypes[layer.type];
   const w    = t.w * zoom, h = t.h * zoom;
   const pulse      = Math.sin(time * 2 + layer.id) * 0.1 + 0.9;
@@ -450,17 +451,6 @@ function drawLayerBox(layer, cx, cy) {
           ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
           : nodeCtx.fillText(text, cx, baseY);
 
-      } else if (layer.type === 'fanout') {
-        const nOut = (_connByFrom.get(layer.id) || []).length;
-        const inShape = getDisplayShape(layer.id);
-        const text = inShape ? `[${inShape.join(', ')}] ×${nOut || '?'}` : `×${nOut || '?'} outputs`;
-        const shift = shiftFor(countLines(text, boxHalfW * 2));
-        drawTitle(shift);
-        const baseY = baseY0 - shift;
-        nodeCtx.fillStyle = white ? tColor : `rgba(${hexToRgb(tColor)}, 0.65)`;
-        nodeCtx.measureText(text).width > boxHalfW * 2
-          ? wrapText(text, cx, baseY, boxHalfW * 2, subFontStr)
-          : nodeCtx.fillText(text, cx, baseY);
       } else if (layer.type === 'output') {
         const dispShape = getDisplayShape(layer.id);
         const text = dispShape ? `shape: [${dispShape.join(', ')}]` : '[ NO CONNECTION ]';
@@ -1816,6 +1806,49 @@ function draw() {
       nodeCtx.strokeStyle = color;
       nodeCtx.lineWidth = 1.5;
       nodeCtx.strokeRect(sx, sy, sw, sh);
+      nodeCtx.restore();
+    }
+  }
+
+  // ── FANOUT container pre-pass (drawn behind its inner box) ──
+  {
+    const _fwhite = document.body.classList.contains('white-mode');
+    for (const f of layers) {
+      if (f.type !== 'fanout') continue;
+      const ft = layerTypes.fanout;
+      const fw = (f.w || ft.w), fh = (f.h || ft.h);
+      const [fcx, fcy] = worldToScreen(f.x, f.y);
+      const sw = fw * zoom, sh = fh * zoom;
+      const sx = fcx - sw / 2, sy = fcy - sh / 2;
+      if (sx + sw < -40 || sx > W + 40 || sy + sh < -40 || sy > H + 40) continue;
+      const col = _fwhite ? ft.lightColor : ft.color;
+      const rgb = hexToRgb(col);
+      const isSel = f.id === selectedLayerId;
+      nodeCtx.save();
+      nodeCtx.fillStyle = `rgba(${rgb}, ${_fwhite ? 0.05 : 0.07})`;
+      nodeCtx.fillRect(sx, sy, sw, sh);
+      nodeCtx.strokeStyle = `rgba(${rgb}, ${isSel ? 0.95 : 0.55})`;
+      nodeCtx.lineWidth = isSel ? 2 : 1.4;
+      nodeCtx.setLineDash([7, 5]);
+      nodeCtx.strokeRect(sx, sy, sw, sh);
+      nodeCtx.setLineDash([]);
+      if (zoom > 0.25) {
+        const N = Math.max(1, (resolveVal(f.n || 2) | 0));
+        const oShape = getDisplayShape(f.id);
+        const fs = Math.max(9, 12 * zoom);
+        nodeCtx.font = `bold ${fs}px Courier New`;
+        nodeCtx.textAlign = 'left'; nodeCtx.textBaseline = 'top';
+        nodeCtx.fillStyle = `rgba(${rgb}, 0.95)`;
+        nodeCtx.fillText(`FANOUT ×${N}`, sx + 6, sy + 5);
+        const fs2 = Math.max(7, 9.5 * zoom);
+        nodeCtx.font = `${fs2}px Courier New`;
+        nodeCtx.fillStyle = `rgba(${rgb}, 0.65)`;
+        const inner = (typeof _fanoutInnerMap !== 'undefined') ? _fanoutInnerMap.get(f.id) : null;
+        const sub = inner
+          ? (oShape ? `→ [${oShape.join(', ')}] ×${N}` : `inner: ${inner.type}`)
+          : 'drop one box inside';
+        nodeCtx.fillText(sub, sx + 6, sy + 5 + fs + 3);
+      }
       nodeCtx.restore();
     }
   }
