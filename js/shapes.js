@@ -20,6 +20,8 @@ function computeOutputShapes() {
   _dispCache  = {};
   _connByTo   = new Map();
   _connByFrom = new Map();
+  const _layerById = new Map();
+  for (const l of layers) _layerById.set(l.id, l);
   for (const c of connections) {
     if (!_connByTo.has(c.to)) _connByTo.set(c.to, []);
     _connByTo.get(c.to).push(c);
@@ -29,7 +31,7 @@ function computeOutputShapes() {
 
   function resolveShape(layerId) {
     if (shapeCache[layerId] !== undefined) return shapeCache[layerId];
-    const layer = layers.find(l => l.id === layerId);
+    const layer = _layerById.get(layerId);
     if (!layer) return null;
 
     /* INPUT: shape = [B, ...dims] — batch size B always prepended as dim 0 */
@@ -42,7 +44,7 @@ function computeOutputShapes() {
     /* FLATTEN: PyTorch nn.Flatten semantics — default start_dim=1 preserves batch at dim 0.
        end_dim=-1 → flatten all dims from start_dim onward */
     if (layer.type === 'flatten') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape) { shapeCache[layerId] = null; return null; }
@@ -70,7 +72,7 @@ function computeOutputShapes() {
       const oc    = resolveVal(layer.out_channels || 16);
       const gr    = resolveVal(layer.groups || 1);
       const ndim  = layer.ndim !== undefined ? layer.ndim : 2;
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = [oc]; return shapeCache[layerId]; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape || srcShape.length === 0) { shapeCache[layerId] = [oc]; return shapeCache[layerId]; }
@@ -107,7 +109,7 @@ function computeOutputShapes() {
     /* LINEAR: PyTorch nn.Linear operates on last dim only → (..., in) → (..., out) */
     if (layer.type === 'linear') {
       const units    = resolveVal(layer.units || 128);
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = [units]; return shapeCache[layerId]; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape || srcShape.length === 0) { shapeCache[layerId] = [units]; return shapeCache[layerId]; }
@@ -117,7 +119,7 @@ function computeOutputShapes() {
 
     /* MEAN: torch.mean semantics */
     if (layer.type === 'mean') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape || srcShape.length === 0) { shapeCache[layerId] = null; return null; }
@@ -137,7 +139,7 @@ function computeOutputShapes() {
 
     /* UNSQUEEZE: torch.unsqueeze — inserts size-1 dim at position `dim` */
     if (layer.type === 'unsqueeze') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape) { shapeCache[layerId] = null; return null; }
@@ -153,7 +155,7 @@ function computeOutputShapes() {
     /* SQUEEZE: torch.squeeze — removes size-1 dims.
        dim=null → remove ALL size-1 dims; dim=N → remove dim N only if size==1 */
     if (layer.type === 'squeeze') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       if (!srcShape) { shapeCache[layerId] = null; return null; }
@@ -175,7 +177,7 @@ function computeOutputShapes() {
 
     /* SOFTMAX: nn.Softmax(dim) — shape passthrough */
     if (layer.type === 'softmax') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       shapeCache[layerId] = srcShape ? [...srcShape] : null;
@@ -185,7 +187,7 @@ function computeOutputShapes() {
     /* ADD: torch.add — element-wise sum of all inputs, shape passthrough.
        All inputs must have identical shapes (PyTorch broadcasting not modelled here). */
     if (layer.type === 'add') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const shapes = incoming.map(c => resolveShape(c.from)).filter(Boolean);
       if (shapes.length === 0) { shapeCache[layerId] = null; return null; }
@@ -209,7 +211,7 @@ function computeOutputShapes() {
        Two inputs required: A (..., n, m) and B (..., m, p) → (..., n, p)
        Last dim of A must equal second-to-last dim of B. */
     if (layer.type === 'matmul') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length < 2) { shapeCache[layerId] = null; return null; }
       const shapeA = resolveShape(incoming[0].from);
       const shapeB = resolveShape(incoming[1].from);
@@ -239,7 +241,7 @@ function computeOutputShapes() {
 
     /* SCALE: element-wise scalar multiply/divide — shape pass-through */
     if (layer.type === 'scale') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[0].from);
       shapeCache[layerId] = srcShape;
@@ -248,7 +250,7 @@ function computeOutputShapes() {
 
     /* TRANSPOSE: torch.transpose(input, dim0, dim1) — swap two dims */
     if (layer.type === 'transpose') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[0].from);
       if (!srcShape) { shapeCache[layerId] = null; return null; }
@@ -266,7 +268,7 @@ function computeOutputShapes() {
 
     /* LAYERNORM: nn.LayerNorm — normalizes over last N dims, shape is pass-through */
     if (layer.type === 'layernorm') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       shapeCache[layerId] = srcShape ? [...srcShape] : null;
@@ -275,7 +277,7 @@ function computeOutputShapes() {
 
     /* RMSNORM: torch.nn.RMSNorm — normalizes each vector by its RMS, shape passthrough */
     if (layer.type === 'rmsnorm') {
-      const incoming = connections.filter(c => c.to === layerId);
+      const incoming = (_connByTo.get(layerId) || []);
       if (incoming.length === 0) { shapeCache[layerId] = null; return null; }
       const srcShape = resolveShape(incoming[incoming.length - 1].from);
       shapeCache[layerId] = srcShape ? [...srcShape] : null;
@@ -302,13 +304,13 @@ function computeOutputShapes() {
   /* Parameter counting: weight = (out, in), bias = (out,) — matches PyTorch convention */
   let totalParams = 0;
   for (const c of connections) {
-    const toLayer   = layers.find(l => l.id === c.to);
+    const toLayer   = _layerById.get(c.to);
     const fromShape = shapeCache[c.from];
     if (!toLayer || !fromShape) { c.paramCount = 0; c.paramLabel = ''; c.paramLabelTop = ''; continue; }
     if (toLayer.type === 'linear') {
       const units       = resolveVal(toLayer.units || 128);
       const inFeatures  = fromShape[fromShape.length - 1] || 1; // last dim = in_features
-      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const allIncoming = (_connByTo.get(toLayer.id) || []);
       const isFirst     = allIncoming[0] === c;
       if (isFirst) {
         const weights    = inFeatures * units;
@@ -329,7 +331,7 @@ function computeOutputShapes() {
       const ndim  = toLayer.ndim !== undefined ? toLayer.ndim : 2;
       const spatialDims = ndim + 1; // C + spatial
       const cIn = fromShape[fromShape.length - spatialDims] || 1;
-      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const allIncoming = (_connByTo.get(toLayer.id) || []);
       const isFirst = allIncoming[0] === c;
       if (isFirst) {
         const rawKs = toLayer.kernel_size !== undefined ? toLayer.kernel_size : 3;
@@ -346,7 +348,7 @@ function computeOutputShapes() {
         c.paramCount = 0; c.paramLabel = 'shared W'; c.paramLabelTop = '';
       }
     } else if (toLayer.type === 'layernorm' && toLayer.elementwise_affine !== false) {
-      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const allIncoming = (_connByTo.get(toLayer.id) || []);
       const isFirst = allIncoming[0] === c;
       if (isFirst) {
         // normalized_shape: user-set or infer from last dim of incoming shape
@@ -360,7 +362,7 @@ function computeOutputShapes() {
         totalParams    += c.paramCount;
       } else { c.paramCount = 0; c.paramLabel = 'shared LN'; c.paramLabelTop = ''; }
     } else if (toLayer.type === 'rmsnorm' && toLayer.elementwise_affine !== false) {
-      const allIncoming = connections.filter(cc => cc.to === toLayer.id);
+      const allIncoming = (_connByTo.get(toLayer.id) || []);
       const isFirst = allIncoming[0] === c;
       if (isFirst) {
         const rawNS = toLayer.normalized_shape;

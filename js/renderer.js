@@ -1036,20 +1036,49 @@ function drawAddHologram(layer, cx, cy, white) {
 function drawSuperboxes(white) {
   _sbEyeBtns = []; // reset each frame
   if (!superboxes.length && !(drawMode && _sbDrawStart && _sbDrawCurrent)) return;
-  const _sbByDepth = sbsSortedByDepth();
+
+  // O(s) maps: avoid O(s^2*log s) sbsSortedByDepth + O(s) superboxes.filter per SB
+  const _lChildMap = new Map();  // sbId -> child SBs[]
+  const _lParentMap = new Map(); // sbId -> parentId
+  for (const sb of superboxes) {
+    if (!_lChildMap.has(sb.id)) _lChildMap.set(sb.id, []);
+    if (sb.parentId) {
+      if (!_lChildMap.has(sb.parentId)) _lChildMap.set(sb.parentId, []);
+      _lChildMap.get(sb.parentId).push(sb);
+      _lParentMap.set(sb.id, sb.parentId);
+    }
+  }
+  // Depth: O(depth) per SB using parent map (depth typically 1-2, not s)
+  const _lDepthMap = new Map();
+  const _lDepth = id => {
+    if (_lDepthMap.has(id)) return _lDepthMap.get(id);
+    let d = 0, cur = id;
+    while (_lParentMap.has(cur)) { cur = _lParentMap.get(cur); if (++d > 30) break; }
+    _lDepthMap.set(id, d);
+    return d;
+  };
+  // Pre-compute depths, sort shallower-first (O(s log s) with O(1) comparator)
+  const _sbByDepth = [...superboxes].sort((a, b) => _lDepth(a.id) - _lDepth(b.id));
+  // Layer-id set for O(1) membership check in _sbFullySel
+  const _layerIdSet = new Set(layers.map(l => l.id));
+
   for (let i = 0; i < _sbByDepth.length; i++) {
     const sb = _sbByDepth[i];
     const _sbPalette = white ? SUPERBOX_COLORS_LIGHT : SUPERBOX_COLORS;
     const color = _sbPalette[sb.colorIdx % _sbPalette.length];
     const [sx, sy] = worldToScreen(sb.x, sb.y);
     const sw = sb.w * zoom, sh = sb.h * zoom;
+
+    // Viewport cull: skip SBs entirely off-screen (small margin for labels above)
+    const _sbM = 60;
+    if (sx + sw + _sbM < 0 || sx - _sbM > W || sy + sh + _sbM < 0 || sy - _sbM > H) continue;
+
     const isSelected = sb.id === selectedSuperboxId;
-    // Compute recursive "fully multi-selected" flag: all direct layers selected
-    // AND all child SBs also fully selected (recursively).
+    // _sbFullySel: O(children) per node using pre-built child map + O(1) id set
     const _sbFullySel = (s) => {
       if (typeof selectedLayerIds === 'undefined' || selectedLayerIds.size === 0) return false;
-      const existingLayers = s.layerIds.filter(id => layers.some(l => l.id === id));
-      const childSbs = superboxes.filter(c => c.parentId === s.id);
+      const existingLayers = s.layerIds.filter(id => _layerIdSet.has(id));
+      const childSbs = _lChildMap.get(s.id) || [];
       if (existingLayers.length === 0 && childSbs.length === 0) return false;
       return existingLayers.every(id => selectedLayerIds.has(id)) &&
              childSbs.every(c => _sbFullySel(c));
@@ -1091,7 +1120,7 @@ function drawSuperboxes(white) {
 
     // name label + eye button (top-left, indented by depth)
     {
-      const depth    = sbDepth(sb);
+      const depth    = _lDepth(sb.id);
       const fontSize = Math.max(11, (39 - depth * 5) * zoom);
       const indent   = depth * Math.max(8, 10 * zoom);
       const eyeR     = Math.max(5, fontSize * 0.45);
@@ -1558,6 +1587,8 @@ function draw() {
     const fromLayer = _layerById.get(c.from);
     const toLayer   = _layerById.get(c.to);
     if (!fromLayer || !toLayer) continue;
+    // Skip connections where both endpoints are inside a collapsed SB (clipped anyway)
+    if (_layerHidden(c.from) && _layerHidden(c.to)) continue;
 
     // Viewport cull: skip connections whose endpoint bbox is fully off-screen.
     // (Selected conn always drawn so its delete/drag handles stay reachable.)
@@ -1647,10 +1678,10 @@ function draw() {
   const _connectedIds = new Set();
   for (const c of connections) { _connectedIds.add(c.from); _connectedIds.add(c.to); }
   // _inSuperboxIds: reuse _sbLayerMap from setup above (already populated)
-  // Hologram-blocked set. Only computed for ON-SCREEN layers (off-screen ones
-  // are viewport-culled before their hologram would draw anyway). O(visible*n).
+  // Hologram-blocked set. Skip entirely at zoom<0.28: all hologram fns
+  // guard 'if (zoom < 0.28) return' so blocked status is irrelevant.
   const _hologramBlockedIds = new Set();
-  for (const layer of layers) {
+  if (zoom >= 0.28) for (const layer of layers) {
     const t = layerTypes[layer.type]; if (!t) continue;
     // skip off-screen layers — hologram never drawn, blocked status irrelevant
     const [_hx, _hy] = worldToScreen(layer.x, layer.y);
