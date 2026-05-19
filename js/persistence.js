@@ -21,6 +21,7 @@ function _applySnap(raw) {
   if (typeof syncAll === 'function') syncAll();
   nodesDirty = true;
   gridDirty  = true;
+  _shapesDirty = true;
 }
 
 function _persistLocal() {
@@ -90,6 +91,7 @@ function loadState() {
     }
     ensureBatchVar(); if (typeof syncAll === 'function') syncAll();
   } catch (e) { ensureBatchVar(); }
+  _shapesDirty = true;
   _prevSnap = _snap(); // baseline so first action pushes correctly
 }
 
@@ -151,6 +153,7 @@ function importFromFile() {
         _prevSnap  = _snap();
         nodesDirty = true;
         gridDirty  = true;
+        _shapesDirty = true;
         _persistLocal();
         selectedLayerId = null; selectedConnIdx = -1;
         closePropEditor();
