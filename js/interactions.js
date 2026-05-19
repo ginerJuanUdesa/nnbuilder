@@ -204,6 +204,22 @@ window.addEventListener('mousedown', e => {
   const sbIdx = hitTestSuperbox(wx, wy);
   if (sbIdx !== -1) {
     const sb = superboxes[sbIdx];
+    // Ctrl/Shift+click: toggle all layers inside SB into multi-selection
+    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+      selectedSuperboxId = sb.id;
+      // Collect all layer IDs recursively inside this SB
+      const _sbAllLayers = (s) => {
+        const ids = [...s.layerIds];
+        for (const child of superboxes.filter(c => c.parentId === s.id))
+          ids.push(..._sbAllLayers(child));
+        return ids;
+      };
+      const allIds = _sbAllLayers(sb);
+      const allSelected = allIds.length > 0 && allIds.every(id => selectedLayerIds.has(id));
+      if (allSelected) allIds.forEach(id => selectedLayerIds.delete(id));
+      else             allIds.forEach(id => selectedLayerIds.add(id));
+      nodesDirty = true; return;
+    }
     selectedSuperboxId = sb.id;
     selectedLayerId = null; selectedConnIdx = -1;
     // If this SB is fully selected, join group drag so all selected items move together
@@ -241,7 +257,7 @@ window.addEventListener('mousedown', e => {
   }
 
   // ── nothing hit: deselect + pan ──
-  if (!e.shiftKey) selectedLayerIds.clear();
+  if (!e.shiftKey && !e.ctrlKey && !e.metaKey) selectedLayerIds.clear();
   selectedConnIdx = -1; selectedLayerId = null; selectedSuperboxId = null; closePropEditor();
   connDragIdx = -1;
   panDragging = true; panStartX = e.clientX; panStartY = e.clientY; panCamX = camX; panCamY = camY;
