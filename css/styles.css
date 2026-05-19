@@ -303,7 +303,7 @@ body.white-mode #vars-panel .var-computed { color: rgba(160, 100, 0, 0.7); }
   border: 1px solid rgba(var(--pe-rgb, 0, 255, 136), 0.5);
   border-radius: 6px;
   padding: 12px 14px;
-  min-width: 260px;
+  width: 260px; box-sizing: border-box;
   overflow: visible;
   box-shadow: 0 0 20px rgba(var(--pe-rgb, 0, 255, 136), 0.15);
 }
@@ -319,6 +319,7 @@ body.white-mode #vars-panel .var-computed { color: rgba(160, 100, 0, 0.7); }
 }
 #prop-editor .pe-label {
   font-size: 11px; color: rgba(0, 200, 255, 0.7);
+  overflow-wrap: anywhere; min-width: 0;
 }
 #prop-editor .pe-input {
   width: 120px; background: rgba(0, 20, 40, 0.8);
