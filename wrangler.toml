@@ -1,0 +1,6 @@
+name = "torchbuilder"
+compatibility_date = "2024-11-01"
+
+# Static export from `next build` lands in ./out
+[assets]
+directory = "./out"

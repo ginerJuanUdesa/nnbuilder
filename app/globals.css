@@ -1,0 +1,471 @@
+/* ── PyTorch-style palette ──────────────────────────────────────────────
+   accent #ee4c2c · header #131313 · body #ffffff · text #262626 */
+:root {
+  --pt-accent:   #ee4c2c;
+  --pt-header:   #131313;
+  --pt-bg:       #ffffff;
+  --pt-text:     #262626;
+  --pt-muted:    #6c6c6c;
+  --pt-border:   #e0e0e0;
+  --pt-grid:     #ececec;
+  --pt-grid-maj: #d4d4d4;
+  --pt-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+             Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: var(--pt-font);
+  color: var(--pt-text);
+  background: var(--pt-bg);
+  overflow: hidden;
+}
+
+/* ── Top bar ── */
+.topbar {
+  height: 56px;
+  background: var(--pt-header);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 32px;
+  border-bottom: 3px solid var(--pt-accent);
+  user-select: none;
+}
+.brand { display: flex; align-items: baseline; gap: 6px; }
+.brand-mark { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+.brand-mark::first-letter { color: var(--pt-accent); }
+.brand-sub { font-size: 13px; color: var(--pt-accent); font-weight: 600; }
+
+.topnav { display: flex; gap: 24px; margin-left: 8px; }
+.topnav a {
+  color: #d8d8d8;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+  transition: color .15s, border-color .15s;
+}
+.topnav a:hover { color: #fff; border-bottom-color: var(--pt-accent); }
+
+.join-btn {
+  margin-left: auto;
+  background: var(--pt-accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: filter .15s;
+}
+.join-btn:hover { filter: brightness(1.08); }
+
+/* ── App layout ── */
+.app {
+  display: flex;
+  height: calc(100vh - 56px);
+}
+
+.sidebar {
+  width: 280px;
+  flex: 0 0 280px;
+  background: #dcdcdc;
+  border-right: 1px solid var(--pt-border);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 16px;
+}
+.sidebar.right {
+  border-right: none;
+  border-left: 1px solid var(--pt-border);
+}
+
+/* ── Scrollable grid stage ── */
+.stage {
+  flex: 1 1 auto;
+  position: relative;
+  overflow: hidden;
+  background: var(--pt-bg);
+  cursor: grab;
+}
+.stage.panning { cursor: grabbing; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+
+/* ── Left sidebar ── */
+/* Inner sidebar wrapper. Use min-height so the wrapper can grow past the
+   viewport when content is tall; the outer .sidebar has overflow-y:auto
+   to give the user a scrollbar in that case. */
+.left-sidebar { display: flex; flex-direction: column; min-height: 100%; }
+
+.sb-section {
+  margin: 10px 10px 0;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid rgba(0,0,0,0.08);
+  overflow: hidden;
+}
+
+.sb-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(0,0,0,0.07);
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+  transition: background .12s;
+}
+.sb-section-header:hover { background: rgba(238,76,44,0.05); }
+
+.sb-arrow {
+  font-size: 9px;
+  color: var(--pt-accent);
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.sb-section-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--pt-accent);
+}
+
+.sb-section-body { padding: 6px 12px 10px; }
+
+/* collapsed: no bottom border on header */
+.sb-section-header:last-child { border-bottom: none; }
+
+.wi-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 0;
+}
+.wi-row + .wi-row {
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+.wi-label {
+  font-size: 11px;
+  color: var(--pt-muted);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.wi-value {
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  color: var(--pt-text);
+  font-weight: 700;
+  background: rgba(0,0,0,0.04);
+  border-radius: 4px;
+  padding: 1px 6px;
+  min-width: 52px;
+  text-align: right;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  gap: 6px;
+  z-index: 20;
+  background: rgba(255,255,255,0.92);
+  border: 1px solid rgba(0,0,0,0.09);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.10);
+  backdrop-filter: blur(6px);
+}
+.toolbar-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pt-muted);
+  transition: background .12s, color .12s;
+  padding: 6px;
+}
+.toolbar-btn:hover {
+  background: rgba(238,76,44,0.08);
+  color: var(--pt-accent);
+}
+.toolbar-btn.active {
+  background: rgba(238,76,44,0.12);
+  color: var(--pt-accent);
+}
+.toolbar-btn svg { width: 100%; height: 100%; }
+
+/* unimplemented buttons — plain square placeholder */
+.toolbar-btn.stub {
+  background: rgba(0,0,0,0.04);
+  border-radius: 5px;
+  color: transparent;
+  cursor: default;
+}
+.toolbar-btn.stub:hover { background: rgba(0,0,0,0.06); color: transparent; }
+
+/* ── Matrix node ── */
+.matrix-node {
+  /* The visible body is rendered by ::before so slot dots (z-index: -1)
+     can sit behind it. Wrapper itself is transparent so slot dots' outer
+     halves remain visible against the canvas. */
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  box-sizing: border-box;
+  gap: 5px;
+}
+.matrix-node::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--node-bg, #ffffff);
+  border: 1.5px solid rgba(0,0,0,0.10);
+  border-radius: inherit;
+  z-index: 0;
+  pointer-events: none;
+  transition: border-color .12s;
+}
+.matrix-node:hover::before {
+  border-color: rgba(0,0,0,0.18);
+}
+/* Inline content (name, dims, etc.) — render above the body. */
+.matrix-node > span,
+.matrix-node > div:not(.node-slot) {
+  position: relative;
+  z-index: 1;
+}
+.matrix-node-name {
+  font-size: 20px;
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  color: #262626;
+  line-height: 1;
+}
+/* ── Node slots ── */
+.node-slot {
+  /* Slot dots are painted on the canvas (below all node bodies, above the
+     grid) so that an adjacent node's body always occludes the part of a
+     ball that bleeds into it. The DOM nodes remain so existing layout /
+     selectors don't break, but are hidden. */
+  display: none;
+}
+.node-slot-in  { left: -6px; }
+.node-slot-out { right: -6px; background: #ee4c2c; border-color: #ee4c2c; }
+.node-slot-label {
+  position: absolute;
+  font-size: 9px;
+  font-weight: 800;
+  color: #6c6c6c;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+}
+.matmul-symbol {
+  font-size: 36px;
+  font-weight: 800;
+  font-family: 'Courier New', monospace;
+  color: #ee4c2c;
+  line-height: 1;
+}
+
+.matrix-node-dims {
+  font-size: 11px;
+  /* Matches .matrix-node-name so name + dims read as a single coherent text
+     block on every node background color. */
+  color: #262626;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.02em;
+}
+
+/* ── Module info fields (right sidebar) ── */
+.mi-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.mi-label {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pt-muted);
+}
+.mi-input {
+  border: 1px solid var(--pt-border);
+  border-radius: 7px;
+  padding: 6px 9px;
+  font-size: 13px;
+  font-family: 'Courier New', monospace;
+  color: var(--pt-text);
+  outline: none;
+  background: #fff;
+  transition: border-color .15s;
+  width: 100%;
+  box-sizing: border-box;
+}
+.mi-input:focus { border-color: var(--pt-accent); }
+.mi-hint {
+  font-size: 10px;
+  color: var(--pt-muted);
+  line-height: 1.4;
+}
+.mi-colors {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+.mi-color-swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: transform .1s;
+}
+.mi-color-swatch:hover { transform: scale(1.15); }
+
+/* ── Palette items ── */
+.pal-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: grab;
+  transition: background .12s;
+  margin-bottom: 2px;
+}
+.pal-item:hover { background: rgba(238,76,44,0.08); }
+.pal-item:active { cursor: grabbing; background: rgba(238,76,44,0.14); }
+.pal-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pt-text);
+  font-family: 'Courier New', monospace;
+}
+.pal-desc {
+  font-size: 10px;
+  color: var(--pt-muted);
+  line-height: 1.3;
+}
+
+/* ── Variables panel ── */
+.vars-panel {
+  position: absolute;
+  transform-origin: top center;
+  background: #e4e4e4;
+  border: 1.5px solid var(--pt-border);
+  border-radius: 14px;
+  padding: 14px 16px 16px;
+  box-shadow: 0 6px 32px rgba(0,0,0,0.12);
+  min-width: 230px;
+  z-index: 10;
+  pointer-events: all;
+}
+.vars-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pt-muted);
+}
+.vars-add {
+  background: var(--pt-accent);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: filter .15s;
+}
+.vars-add:hover { filter: brightness(1.1); }
+.vars-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.vars-name {
+  width: 72px;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--pt-border);
+  border-radius: 6px;
+  padding: 4px 7px;
+  color: var(--pt-text);
+  outline: none;
+  transition: border-color .15s;
+}
+.vars-name:focus { border-color: var(--pt-accent); }
+.vars-eq {
+  font-size: 13px;
+  color: var(--pt-muted);
+  flex-shrink: 0;
+}
+.vars-val {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  border: 1px solid var(--pt-border);
+  border-radius: 6px;
+  padding: 4px 7px;
+  color: var(--pt-text);
+  outline: none;
+  transition: border-color .15s;
+}
+.vars-val:focus { border-color: var(--pt-accent); }
+.vars-del {
+  background: none;
+  border: none;
+  color: var(--pt-muted);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color .15s;
+  flex-shrink: 0;
+}
+.vars-del:hover { color: var(--pt-accent); }
+.vars-empty {
+  font-size: 12px;
+  color: var(--pt-muted);
+  text-align: center;
+  padding: 4px 0 2px;
+}
