@@ -27,16 +27,23 @@ function InfoRow({ label, value }) {
 
 
 export default function LeftSidebar() {
-  const [info, setInfo] = useState({ x: '—', y: '—', zoom: '—', fps: '—' });
+  const [info, setInfo] = useState({ x: '—', y: '—', zoom: '—', fps: '—', params: '—' });
 
   useEffect(() => {
     const handler = (e) => {
       const w = e.detail;
+      const p = w.params;
+      const paramsStr = p === null ? '?'
+                      : p >= 1e9  ? (p / 1e9).toFixed(2) + 'B'
+                      : p >= 1e6  ? (p / 1e6).toFixed(2) + 'M'
+                      : p >= 1e3  ? (p / 1e3).toFixed(1) + 'K'
+                      : String(p);
       setInfo({
-        x:    w.x.toFixed(0),
-        y:    w.y.toFixed(0),
-        zoom: (w.zoom * 100).toFixed(0) + '%',
-        fps:  w.fps,
+        x:      w.x.toFixed(0),
+        y:      w.y.toFixed(0),
+        zoom:   (w.zoom * 100).toFixed(0) + '%',
+        fps:    w.fps,
+        params: paramsStr,
       });
     };
     window.addEventListener('worldinfo', handler);
@@ -46,10 +53,11 @@ export default function LeftSidebar() {
   return (
     <div className="left-sidebar">
       <Section title="World Information">
-        <InfoRow label="X"    value={info.x} />
-        <InfoRow label="Y"    value={info.y} />
-        <InfoRow label="Zoom" value={info.zoom} />
-        <InfoRow label="FPS"  value={info.fps} />
+        <InfoRow label="X"          value={info.x} />
+        <InfoRow label="Y"          value={info.y} />
+        <InfoRow label="Zoom"       value={info.zoom} />
+        <InfoRow label="FPS"        value={info.fps} />
+        <InfoRow label="Parameters" value={info.params} />
       </Section>
 
       <Section title="Matrixes">
@@ -107,6 +115,14 @@ export default function LeftSidebar() {
           <span className="pal-name">ReLU</span>
           <span className="pal-desc">nn.ReLU() — elementwise max(0, x)</span>
         </div>
+        <div
+          className="pal-item"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'dropout')}
+        >
+          <span className="pal-name">Dropout</span>
+          <span className="pal-desc">nn.Dropout(p) — stochastic zero-out</span>
+        </div>
       </Section>
       <Section title="F.functions">
         <div
@@ -140,6 +156,30 @@ export default function LeftSidebar() {
         >
           <span className="pal-name">MaskedFill</span>
           <span className="pal-desc">x.masked_fill(mask, value)</span>
+        </div>
+        <div
+          className="pal-item"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'contiguous')}
+        >
+          <span className="pal-name">Contiguous</span>
+          <span className="pal-desc">.contiguous() — enforce memory layout</span>
+        </div>
+        <div
+          className="pal-item"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'view')}
+        >
+          <span className="pal-name">View</span>
+          <span className="pal-desc">x.view(*shape) — reshape, -1 infers dim</span>
+        </div>
+        <div
+          className="pal-item"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'slice')}
+        >
+          <span className="pal-name">Slice</span>
+          <span className="pal-desc">x[:T, :T] — per-dim index bounds</span>
         </div>
       </Section>
     </div>

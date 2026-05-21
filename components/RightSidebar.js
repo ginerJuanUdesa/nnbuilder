@@ -36,7 +36,7 @@ export default function RightSidebar() {
     const h = (e) => {
       const next = e.detail ? { ...e.detail } : null;
       setNode(next);
-      setShapeStr(next?.shape ? next.shape.join(', ') : '');
+      setShapeStr(next?.shape && Array.isArray(next.shape) ? next.shape.join(', ') : '');
     };
     window.addEventListener('nodeselect', h);
     return () => window.removeEventListener('nodeselect', h);
@@ -60,7 +60,7 @@ export default function RightSidebar() {
   // the user what they're editing at a glance.
   // Shared toggle for every module that spawns an "out" ghost silhouette.
   // Default = visible (treat undefined as true).
-  const ghostToggle = (node && ['matmul','linear','relu','scale','transpose','softmax'].includes(node.type)) ? (
+  const ghostToggle = (node && ['matmul','linear','relu','scale','transpose','softmax','dropout','slice','view','contiguous'].includes(node.type)) ? (
     <div className="mi-field" style={{ flexDirection:'row', alignItems:'center', gap:'8px' }}>
       <input
         type="checkbox"
@@ -80,6 +80,10 @@ export default function RightSidebar() {
     : node.type === 'transpose' ? 'Module Information — Transpose'
     : node.type === 'softmax'   ? 'Module Information — F.softmax'
     : node.type === 'triu'      ? 'Module Information — torch.triu'
+    : node.type === 'dropout'     ? 'Module Information — nn.Dropout'
+    : node.type === 'slice'       ? 'Module Information — Slice'
+    : node.type === 'view'        ? 'Module Information — view / reshape'
+    : node.type === 'contiguous'  ? 'Module Information — .contiguous()'
     : node.type === 'masked_fill' ? 'Module Information — masked_fill'
     : node.type === 'matmul'    ? 'Module Information — matmul'
     : node.type === 'matrix'    ? `Module Information — ${
@@ -93,6 +97,21 @@ export default function RightSidebar() {
   return (
     <div className="left-sidebar">
       <Section title={moduleLabel}>
+        {node?._dimError && (
+          <div style={{
+            background: 'rgba(238,76,44,0.10)',
+            border: '1px solid rgba(238,76,44,0.4)',
+            borderRadius: '7px',
+            padding: '6px 9px',
+            marginBottom: '8px',
+            fontSize: '11px',
+            color: '#c0392b',
+            fontFamily: "'Courier New', monospace",
+            wordBreak: 'break-all',
+          }}>
+            ⚠ dim mismatch: {node._dimError}
+          </div>
+        )}
         {!node ? (
           <div className="wi-row">
             <span className="wi-label" style={{ fontStyle: 'italic' }}>No module selected</span>
@@ -246,9 +265,56 @@ export default function RightSidebar() {
             </div>
             <span className="mi-hint">Spawns one output matrix per input edge: shape = (…, d_out).</span>
           </>
+        ) : node.type === 'view' ? (
+          <>
+            <div className="mi-field">
+              <label className="mi-label">shape</label>
+              <input
+                className="mi-input"
+                value={String(node.shape ?? '-1')}
+                onChange={e => update('shape', e.target.value)}
+                placeholder="-1, T, C"
+                spellCheck={false}
+              />
+            </div>
+            <span className="mi-hint">{'x.view(*shape). Use -1 to infer one dim. Supports variable names. Total elements must be conserved.'}</span>
+          </>
+        ) : node.type === 'slice' ? (
+          <>
+            <div className="mi-field">
+              <label className="mi-label">dims</label>
+              <input
+                className="mi-input"
+                value={String(node.dims ?? ':')}
+                onChange={e => update('dims', e.target.value)}
+                placeholder=":T, :T"
+                spellCheck={false}
+              />
+            </div>
+            <span className="mi-hint">{'Slice per dim: `:` = keep, `:T` = first T, `A:B` = A to B, `A:B:S` = step. Comma-separate dims. Supports variable names.'}</span>
+          </>
+        ) : node.type === 'dropout' ? (
+          <>
+            <div className="mi-field">
+              <label className="mi-label">p</label>
+              <input
+                className="mi-input"
+                type="number"
+                min="0" max="1" step="0.1"
+                value={String(node.p ?? 0.5)}
+                onChange={e => update('p', Math.min(1, Math.max(0, parseFloat(e.target.value) || 0)))}
+                placeholder="0.5"
+              />
+            </div>
+            <span className="mi-hint">nn.Dropout(p) — zeroes elements with probability p during training. Output shape = input shape.</span>
+          </>
         ) : node.type === 'relu' ? (
           <>
             <span className="mi-hint">nn.ReLU() — elementwise max(0, x). Output shape = input shape.</span>
+          </>
+        ) : node.type === 'contiguous' ? (
+          <>
+            <span className="mi-hint">.contiguous() — returns a tensor with contiguous memory layout. Required after transpose/permute before view/reshape. Output shape = input shape.</span>
           </>
         ) : node.type === 'matmul' ? (
           <>

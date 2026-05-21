@@ -252,6 +252,14 @@ html, body {
 .matrix-node:hover::before {
   border-color: rgba(0,0,0,0.18);
 }
+.matrix-node.node-error::before {
+  border-color: #ee4c2c;
+  border-width: 2px;
+  box-shadow: 0 0 0 2px rgba(238,76,44,0.18);
+}
+.matrix-node.node-error:hover::before {
+  border-color: #d43f21;
+}
 /* Inline content (name, dims, etc.) — render above the body. */
 .matrix-node > span,
 .matrix-node > div:not(.node-slot) {
@@ -377,7 +385,7 @@ html, body {
 /* ── Variables panel ── */
 .vars-panel {
   position: absolute;
-  transform-origin: top center;
+  transform-origin: top left;
   background: #e4e4e4;
   border: 1.5px solid var(--pt-border);
   border-radius: 14px;

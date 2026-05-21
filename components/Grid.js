@@ -261,7 +261,17 @@ function safeEvalVarExpr(expr, scope) {
   // the Function constructor. Allowed: digits, identifiers, math ops,
   // parens, comma, dot, percent, caret (alias for **), whitespace.
   if (!/^[0-9a-zA-Z+\-*/%()\^,.\s_]+$/.test(expr)) return NaN;
-  const normalized = expr.replace(/\^/g, '**');
+  // Replace Python-style floor division // with Math.floor(a/b).
+  // Must run before JS sees it, since JS treats // as line comment.
+  // Handles simple token//token (covers T//8, d//heads, etc.)
+  // Applied iteratively to handle chained: a//b//c → floor(floor(a/b)/c)
+  let normalized = expr.replace(/\^/g, '**');
+  let prev;
+  do {
+    prev = normalized;
+    normalized = normalized.replace(/([A-Za-z0-9_.]+)\s*\/\/\s*([A-Za-z0-9_.]+)/g,
+      'Math.floor(($1)/($2))');
+  } while (normalized !== prev);
   try {
     const keys = Object.keys(scope);
     const vals = Object.values(scope);
@@ -272,7 +282,23 @@ function safeEvalVarExpr(expr, scope) {
   } catch { return NaN; }
 }
 
-function resolveVars(vars) {
+// Build a lookup of "NodeName.shape[N]" → numeric value from matrix nodes.
+// Used to allow variable expressions like `seq = Input.shape[0]`.
+function buildShapeRefs(nodesArr) {
+  const refs = {};
+  for (const n of (nodesArr || [])) {
+    if (n.type === 'matrix' && n.name && Array.isArray(n.shape)) {
+      n.shape.forEach((dim, i) => {
+        const num = typeof dim === 'number' ? dim : parseFloat(String(dim));
+        refs[`${n.name}.shape[${i}]`] = isNaN(num) ? null : num;
+      });
+    }
+  }
+  return refs;
+}
+
+function resolveVars(vars, nodesArr = []) {
+  const shapeRefs = buildShapeRefs(nodesArr);
   const out = {};
   const visiting = new Set();
   const resolveOne = (name) => {
@@ -281,8 +307,14 @@ function resolveVars(vars) {
     visiting.add(name);
     const v = vars.find(x => x.name === name);
     if (!v) { visiting.delete(name); out[name] = NaN; return NaN; }
-    const raw = String(v.value ?? '').trim();
+    let raw = String(v.value ?? '').trim();
     if (raw === '') { visiting.delete(name); out[name] = NaN; return NaN; }
+    // Substitute Name.shape[N] references before numeric parsing / eval.
+    for (const [ref, val] of Object.entries(shapeRefs)) {
+      if (raw.includes(ref)) {
+        raw = raw.split(ref).join(val === null ? 'NaN' : String(val));
+      }
+    }
     if (/^-?\d+(\.\d+)?$/.test(raw)) {
       const n = parseFloat(raw);
       visiting.delete(name); out[name] = n; return n;
@@ -439,7 +471,7 @@ export default function Grid() {
       let shapesCompat = false;
       if (shA && shB && shA.length >= 2 && shB.length >= 2) {
         const aLast  = String(shA[shA.length - 1]);
-        const bFirst = String(shB[1]);
+        const bFirst = String(shB[shB.length - 2]); // second-to-last dim of B (PyTorch matmul convention)
         shapesCompat = aLast === bFirst;
       }
       const bothWired = !!(cA && cB) && shapesCompat;
@@ -451,7 +483,7 @@ export default function Grid() {
       // with B's last dim.
       const outShape = (shA && shB)
         ? [...shA.slice(0, -1), shB[shB.length - 1]]
-        : ['BATCH', 4];
+        : [4, 4];
 
       if (bothWired && matrixIdx === -1) {
         // Spawn bound matrix. No auto-edge needed — matrix sits flush against
@@ -518,6 +550,17 @@ export default function Grid() {
           needsUpdate = true;
         }
       }
+
+      // Dim-error: both A and B wired with resolved shapes, but contraction
+      // dims don't match (A last ≠ B second-to-last). Highlight the node.
+      const matmulError = (cA && cB && shA && shB && !shapesCompat)
+        ? `A[-1] = ${shA[shA.length-1]}  ≠  B[-2] = ${shB[shB.length-2]}`
+        : null;
+      const mErrIdx = nextNodes.findIndex(n => n.id === m.id);
+      if (mErrIdx !== -1 && (nextNodes[mErrIdx]._dimError ?? null) !== matmulError) {
+        nextNodes[mErrIdx] = { ...nextNodes[mErrIdx], _dimError: matmulError };
+        needsUpdate = true;
+      }
     }
 
     // ── MASKED_FILL → bound matrix ───────────────────────────────────────
@@ -562,7 +605,7 @@ export default function Grid() {
       const matrixIdx = m.matrixId !== undefined
         ? nextNodes.findIndex(n => n.id === m.matrixId)
         : -1;
-      const outShape = shX ? [...shX] : ['BATCH', 4];
+      const outShape = shX ? [...shX] : [4, 4];
 
       if (bothWired && matrixIdx === -1) {
         const mxId = idSeed++;
@@ -632,7 +675,7 @@ export default function Grid() {
       for (const c of nextConns) {
         if (c.fromNodeId !== m.id) continue;
         const tn = nextNodes.find(n => n.id === c.toNodeId);
-        if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill')) {
+        if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill' || tn.type === 'dropout' || tn.type === 'slice' || tn.type === 'view' || tn.type === 'contiguous')) {
           return false;
         }
       }
@@ -655,7 +698,7 @@ export default function Grid() {
         const sA = effectiveShape(nextNodes.find(n => n.id === cA.fromNodeId), new Set(visited));
         const sB = effectiveShape(nextNodes.find(n => n.id === cB.fromNodeId), new Set(visited));
         if (!sA || !sB || sA.length < 2 || sB.length < 2) return null;
-        if (String(sA[sA.length - 1]) !== String(sB[1])) return null;
+        if (String(sA[sA.length - 1]) !== String(sB[sB.length - 2])) return null;
         return [...sA.slice(0, -1), sB[sB.length - 1]];
       }
       if (src.type === 'masked_fill') {
@@ -666,12 +709,68 @@ export default function Grid() {
         const sX = effectiveShape(nextNodes.find(n => n.id === cX.fromNodeId), new Set(visited));
         return sX ? [...sX] : null;
       }
-      if (src.type === 'linear' || src.type === 'relu' || src.type === 'scale' || src.type === 'transpose' || src.type === 'softmax' || src.type === 'triu') {
+      if (src.type === 'view') {
         const ins = nextConns.filter(c => c.toNodeId === src.id);
         if (!ins.length) return null;
         const upstream = effectiveShape(nextNodes.find(n => n.id === ins[0].fromNodeId), new Set(visited));
         if (!upstream) return null;
-        if (src.type === 'relu' || src.type === 'scale' || src.type === 'softmax' || src.type === 'triu') return [...upstream];
+        const raw = String(src.shape ?? '-1').replace(/[()[\]]/g, '').trim();
+        const parts = raw.split(',').map(s => s.trim()).filter(Boolean);
+        if (!parts.length) return null;
+        // Symbolic output: preserve variable name strings; only resolve to numbers
+        // when needed for -1 inference arithmetic.
+        const isLiteralNum = s => /^-?\d+(\.\d+)?$/.test(s);
+        const outputParts = parts.map(p =>
+          p === '-1' ? -1 : isLiteralNum(p) ? parseFloat(p) : p // keep var names as strings
+        );
+        const negIdx = outputParts.indexOf(-1);
+        if (negIdx === -1) return outputParts;
+        // Infer -1: resolve everything numerically just for arithmetic.
+        const resolveNum = d => typeof d === 'number' ? d : resolveValWithVars(String(d), varsRef.current);
+        const inputTotal = upstream.reduce((acc, d) => acc === null ? null : (resolveNum(d) === null ? null : acc * resolveNum(d)), 1);
+        if (inputTotal === null) return outputParts.map(v => v === -1 ? '?' : v);
+        const otherProd = outputParts.reduce((acc, v, i) => {
+          if (acc === null || i === negIdx) return acc;
+          const n = resolveNum(v);
+          return n !== null ? acc * n : null;
+        }, 1);
+        if (!otherProd) return outputParts.map(v => v === -1 ? '?' : v);
+        const inferred = inputTotal / otherProd;
+        // Try to express inferred dim as a variable name if one matches.
+        const matchVar = varsRef.current.find(v => resolveValWithVars(v.name, varsRef.current) === inferred);
+        return outputParts.map((v, i) => i === negIdx ? (matchVar ? matchVar.name : inferred) : v);
+      }
+      if (src.type === 'slice') {
+        const ins = nextConns.filter(c => c.toNodeId === src.id);
+        if (!ins.length) { return null; }
+        const upstream = effectiveShape(nextNodes.find(n => n.id === ins[0].fromNodeId), new Set(visited));
+        if (!upstream) return null;
+        const raw = String(src.dims ?? ':').trim().replace(/^\[/, '').replace(/\]$/, '');
+        const specs = raw.split(',').map(s => s.trim());
+        const out = [...upstream];
+        for (let i = 0; i < upstream.length; i++) {
+          if (i >= specs.length) break;
+          const spec = specs[i];
+          if (spec === ':' || spec === '') continue;
+          const parts = spec.split(':');
+          if (parts.length < 2) continue;
+          const startRaw = parts[0].trim();
+          const endRaw   = parts[1].trim();
+          const stepRaw  = parts[2]?.trim() ?? '';
+          const start = startRaw === '' ? 0 : (resolveValWithVars(startRaw, varsRef.current) ?? 0);
+          const end   = endRaw   === '' ? null : resolveValWithVars(endRaw, varsRef.current);
+          const step  = stepRaw  === '' ? 1  : (resolveValWithVars(stepRaw, varsRef.current) ?? 1);
+          if (end === null) { out[i] = endRaw; continue; } // unresolved var — keep as string
+          out[i] = Math.max(0, Math.ceil((end - start) / step));
+        }
+        return out;
+      }
+      if (src.type === 'linear' || src.type === 'relu' || src.type === 'scale' || src.type === 'transpose' || src.type === 'softmax' || src.type === 'triu' || src.type === 'dropout' || src.type === 'contiguous') {
+        const ins = nextConns.filter(c => c.toNodeId === src.id);
+        if (!ins.length) return null;
+        const upstream = effectiveShape(nextNodes.find(n => n.id === ins[0].fromNodeId), new Set(visited));
+        if (!upstream) return null;
+        if (src.type === 'relu' || src.type === 'scale' || src.type === 'softmax' || src.type === 'triu' || src.type === 'dropout' || src.type === 'contiguous') return [...upstream];
         if (src.type === 'transpose') {
           // torch.transpose(input, dim0, dim1) — swap two dims; negatives wrap.
           const L = upstream.length;
@@ -684,9 +783,18 @@ export default function Grid() {
           [out[d0], out[d1]] = [out[d1], out[d0]];
           return out;
         }
-        // linear
+        // linear — compare string first (fast path), then fall back to
+        // resolved numeric comparison so symbolic dims like 'd_k' = 64
+        // match a numeric d_in = 64 and vice versa.
         const dInStr = String(src.d_in ?? 4);
-        if (String(upstream[upstream.length - 1]) !== dInStr) return null;
+        const upLast = String(upstream[upstream.length - 1]);
+        const dimsMatchEff = upLast === dInStr ||
+          (() => {
+            const a = resolveValWithVars(upLast, varsRef.current);
+            const b = resolveValWithVars(dInStr, varsRef.current);
+            return a !== null && b !== null && a === b;
+          })();
+        if (!dimsMatchEff) return null;
         return [...upstream.slice(0, -1), src.d_out ?? 4];
       }
       return null;
@@ -735,7 +843,7 @@ export default function Grid() {
     };
 
     for (const lin of nextNodes) {
-      if (lin.type !== 'linear' && lin.type !== 'relu' && lin.type !== 'scale' && lin.type !== 'transpose' && lin.type !== 'softmax' && lin.type !== 'triu') continue;
+      if (lin.type !== 'linear' && lin.type !== 'relu' && lin.type !== 'scale' && lin.type !== 'transpose' && lin.type !== 'softmax' && lin.type !== 'triu' && lin.type !== 'dropout' && lin.type !== 'slice' && lin.type !== 'view' && lin.type !== 'contiguous') continue;
       // Only the LAST module in a chain spawns matrices. Intermediate
       // modules (those with an outgoing edge to another module) are silent
       // — their transform composes into the terminal's effective shape via
@@ -749,6 +857,7 @@ export default function Grid() {
       const linInConns = nextConns.filter(c => c.toNodeId === lin.id);
       const matrices = { ...(lin.matrices || {}) };
       let matricesChanged = false;
+      let anyDimMismatch = false; // tracks upstream dim ≠ d_in for error display
 
       // Pass 1: drop entries whose source conn vanished (incl. despawn matrix)
       for (const connId of Object.keys(matrices)) {
@@ -789,7 +898,7 @@ export default function Grid() {
         let outShape = null;
         let compat = false;
         if (srcShape) {
-          if (lin.type === 'relu' || lin.type === 'scale' || lin.type === 'softmax' || lin.type === 'triu') {
+          if (lin.type === 'relu' || lin.type === 'scale' || lin.type === 'softmax' || lin.type === 'triu' || lin.type === 'contiguous') {
             outShape = [...srcShape];
             compat = true;
           } else if (lin.type === 'transpose') {
@@ -803,10 +912,28 @@ export default function Grid() {
               [outShape[d0], outShape[d1]] = [outShape[d1], outShape[d0]];
               compat = true;
             }
-          } else if (srcLast !== null && srcLast === dInStr) {
-            // linear
-            outShape = [...srcShape.slice(0, -1), dOut];
+          } else if (lin.type === 'dropout') {
+            outShape = [...srcShape];
             compat = true;
+          } else if (lin.type === 'slice' || lin.type === 'view') {
+            // effectiveShape already encodes the full transform for these.
+            const computed = effectiveShape(lin);
+            if (computed) { outShape = computed; compat = true; }
+          } else if (srcLast !== null) {
+            // linear — string compare first, then resolved numeric fallback
+            // so symbolic 'd_k'=64 matches numeric d_in=64 and vice versa.
+            const dimsMatch = srcLast === dInStr ||
+              (() => {
+                const a = resolveValWithVars(srcLast, varsRef.current);
+                const b = resolveValWithVars(dInStr, varsRef.current);
+                return a !== null && b !== null && a === b;
+              })();
+            if (dimsMatch) {
+              outShape = [...srcShape.slice(0, -1), dOut];
+              compat = true;
+            } else {
+              anyDimMismatch = true; // upstream resolved but dims don't match d_in
+            }
           }
         }
         const entry = matrices[c.id] || (matrices[c.id] = {});
@@ -821,7 +948,7 @@ export default function Grid() {
               id: mxId, type: 'matrix',
               name:  entry.name  ?? 'out',
               color: entry.color ?? undefined,
-              shape: outShape || ['BATCH', dOut],
+              shape: outShape || [dOut],
               x: pos.x, y: pos.y,
               boundLinearId: lin.id, boundLinearConnId: c.id,
             };
@@ -861,9 +988,13 @@ export default function Grid() {
         }
       }
 
-      if (matricesChanged) {
+      const linError = (lin.type === 'linear' && anyDimMismatch)
+        ? `d_in (${dInStr}) ≠ upstream last dim`
+        : null;
+      const prevLinError = lin._dimError ?? null;
+      if (matricesChanged || linError !== prevLinError) {
         const linIdx = nextNodes.indexOf(lin);
-        nextNodes[linIdx] = { ...lin, matrices };
+        nextNodes[linIdx] = { ...lin, matrices, _dimError: linError };
         needsUpdate = true;
       }
     }
@@ -1000,7 +1131,7 @@ const toolModeRef    = useRef('pan');
           const d = Math.hypot(wx-p.x, wy-p.y);
           if (d < minD) { minD = d; best = { node:n, slotId:sid, side:null, pos:p }; }
         }
-      } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu') {
+      } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') {
         // Three input gates: every side except the rot-determined output.
         const outSide = rotToOutSide(n.rot);
         for (const side of ALL_SIDES) {
@@ -1099,7 +1230,31 @@ const toolModeRef    = useRef('pan');
       const r = stage.getBoundingClientRect();
       const cx = cam.x + (r.width  / 2) / cam.zoom;
       const cy = cam.y + (r.height / 2) / cam.zoom;
-      window.dispatchEvent(new CustomEvent('worldinfo',{ detail:{x:cx,y:cy,zoom:cam.zoom,fps} }));
+      // Count learnable parameters across all module nodes.
+      // Only nn.Linear has trainable weights; all other ops are param-free.
+      // Use resolveValWithVars so variable-name dims (e.g. "B", "T") resolve correctly.
+      let totalParams = 0;
+      let paramsValid = true;
+      const resolvedVars = resolveVars(varsRef.current, nodesRef.current);
+      const batchName = varsRef.current[0]?.name ?? 'BATCH';
+      const resolveD = (s, fallback) => {
+        const key = String(s ?? '').trim();
+        // Batch dim is never a feature dim — refuse to use it in param math.
+        if (key === batchName) return null;
+        const v = resolveValWithVars(s ?? fallback, varsRef.current);
+        if (v !== null && !isNaN(v)) return v;
+        if (key in resolvedVars && !isNaN(resolvedVars[key])) return resolvedVars[key];
+        return null;
+      };
+      for (const n of nodesRef.current) {
+        if (n.type === 'linear') {
+          const dIn  = resolveD(n.d_in,  4);
+          const dOut = resolveD(n.d_out, 4);
+          if (dIn === null || dOut === null) { paramsValid = false; break; }
+          totalParams += dIn * dOut + (n.bias !== false ? dOut : 0);
+        }
+      }
+      window.dispatchEvent(new CustomEvent('worldinfo',{ detail:{x:cx,y:cy,zoom:cam.zoom,fps,params:paramsValid ? totalParams : null} }));
       rafId = requestAnimationFrame(worldInfoLoop);
     }
     worldInfoLoop();
@@ -1112,7 +1267,8 @@ const toolModeRef    = useRef('pan');
       const p = panelRef.current; if (!p) return;
       p.style.left = '12px';
       p.style.top  = '12px';
-      p.style.transform = 'none';
+      p.style.transform = 'scale(0.75)';
+      p.style.transformOrigin = 'top left';
     }
 
     function draw() {
@@ -1249,12 +1405,12 @@ const toolModeRef    = useRef('pan');
         for (const c of connectionsRef.current) {
           if (c.fromNodeId !== m.id) continue;
           const tn = nodesRef.current.find(n => n.id === c.toNodeId);
-          if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill')) return false;
+          if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill' || tn.type === 'dropout' || tn.type === 'slice' || tn.type === 'view' || tn.type === 'contiguous')) return false;
         }
         return true;
       };
       for (const node of nodesRef.current) {
-        if (node.type !== 'linear' && node.type !== 'relu' && node.type !== 'scale' && node.type !== 'transpose' && node.type !== 'softmax' && node.type !== 'triu') continue;
+        if (node.type !== 'linear' && node.type !== 'relu' && node.type !== 'scale' && node.type !== 'transpose' && node.type !== 'softmax' && node.type !== 'triu' && node.type !== 'dropout' && node.type !== 'slice' && node.type !== 'view' && node.type !== 'contiguous') continue;
         if (node.showGhost === false) continue;
         if (!_isTerminalDraw(node)) continue;
         const outPos = getOutputSlotPos(node);
@@ -1339,7 +1495,7 @@ const toolModeRef    = useRef('pan');
           drawSlotDot(pX.x, pX.y, false);
           drawSlotDot(pM.x, pM.y, false);
           drawSlotDot(po.x, po.y, true);
-        } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu') {
+        } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') {
           const outSide = rotToOutSide(n.rot);
           for (const side of ALL_SIDES) {
             if (side === outSide) continue;
@@ -1428,7 +1584,7 @@ const toolModeRef    = useRef('pan');
             // from any side via closestSide. Connecting a module's output
             // into another module appends to the chain — the upstream
             // suppresses its own matrix in favor of the chain tail.
-            const fromSide = (nearNode.type === 'matrix' || nearNode.type === 'linear' || nearNode.type === 'relu' || nearNode.type === 'scale' || nearNode.type === 'transpose' || nearNode.type === 'softmax' || nearNode.type === 'triu' || nearNode.type === 'matmul' || nearNode.type === 'masked_fill')
+            const fromSide = (nearNode.type === 'matrix' || nearNode.type === 'linear' || nearNode.type === 'relu' || nearNode.type === 'scale' || nearNode.type === 'transpose' || nearNode.type === 'softmax' || nearNode.type === 'triu' || nearNode.type === 'matmul' || nearNode.type === 'masked_fill' || nearNode.type === 'dropout' || nearNode.type === 'slice' || nearNode.type === 'view' || nearNode.type === 'contiguous')
               ? closestSide(nearNode, wx, wy)
               : null;
             pendingConnRef.current = { fromNodeId: nearNode.id, fromSide, mouseX: wx, mouseY: wy };
@@ -1590,7 +1746,7 @@ const toolModeRef    = useRef('pan');
         const fullSel = new Set(sel);
         for (const n of nodesRef.current) {
           if ((n.type === 'matmul' || n.type === 'masked_fill') && n.matrixId !== undefined && fullSel.has(n.id)) fullSel.add(n.matrixId);
-          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu') && n.matrices && fullSel.has(n.id)) {
+          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') && n.matrices && fullSel.has(n.id)) {
             for (const e of Object.values(n.matrices)) {
               if (e?.matrixId !== undefined) fullSel.add(e.matrixId);
             }
@@ -1613,7 +1769,7 @@ const toolModeRef    = useRef('pan');
         const fullSel = new Set(sel);
         for (const n of nodesRef.current) {
           if ((n.type === 'matmul' || n.type === 'masked_fill') && n.matrixId !== undefined && fullSel.has(n.id)) fullSel.add(n.matrixId);
-          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu') && n.matrices && fullSel.has(n.id)) {
+          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') && n.matrices && fullSel.has(n.id)) {
             for (const e of Object.values(n.matrices)) {
               if (e?.matrixId !== undefined) fullSel.add(e.matrixId);
             }
@@ -1654,6 +1810,14 @@ const toolModeRef    = useRef('pan');
           d_in: 4, d_out: 4, bias: true,
           ...pos,
         };
+      } else if (nodeType === 'view') {
+        nn = { id: Date.now(), type: 'view', shape: '-1', ...pos };
+      } else if (nodeType === 'dropout') {
+        nn = { id: Date.now(), type: 'dropout', p: 0.5, ...pos };
+      } else if (nodeType === 'slice') {
+        nn = { id: Date.now(), type: 'slice', dims: ':', ...pos };
+      } else if (nodeType === 'contiguous') {
+        nn = { id: Date.now(), type: 'contiguous', ...pos };
       } else if (nodeType === 'relu') {
         nn = { id: Date.now(), type: 'relu', ...pos };
       } else if (nodeType === 'scale') {
@@ -1672,11 +1836,11 @@ const toolModeRef    = useRef('pan');
         // translator reads to emit torch.ones(shape).
         nn = {
           id: Date.now(), type: 'matrix', init: 'ones',
-          name: 'ones', shape: ['BATCH', 4],
+          name: 'ones', shape: [4, 4],
           ...pos,
         };
       } else {
-        nn = { id: Date.now(), type: 'matrix', name: 'W', shape: ['BATCH', 4], ...pos };
+        nn = { id: Date.now(), type: 'matrix', name: 'W', shape: [4, 4], ...pos };
       }
       setNodesRef.current(prev => [...prev, nn]);
       setSelectedIdsRef.current(new Set([nn.id]));
@@ -1953,7 +2117,7 @@ const toolModeRef    = useRef('pan');
           // Resolve every variable in one pass so each row can show its
           // computed value next to the raw expression. Refs like "A+B" or
           // "floor(sqrt(N))" surface their evaluated number on the right.
-          const resolved = resolveVars(vars);
+          const resolved = resolveVars(vars, nodesRef.current);
           return (
             <>
               {vars.length===0 && <div className="vars-empty">No variables yet</div>}
@@ -1964,7 +2128,7 @@ const toolModeRef    = useRef('pan');
                 const showComputed = !isLiteralNum && raw.length > 0;
                 return (
                   <div className="vars-row" key={i}>
-                    <input className="vars-name" value={v.name} onChange={e=>updateVar(i,'name',e.target.value)} placeholder="name" spellCheck={false}/>
+                    <input className="vars-name" value={v.name} onChange={e=>updateVar(i,'name',e.target.value)} placeholder="name" spellCheck={false} readOnly={i===0} style={i===0?{opacity:0.5,cursor:'default'}:undefined}/>
                     <span className="vars-eq">=</span>
                     <input className="vars-val" value={v.value} onChange={e=>updateVar(i,'value',e.target.value)} placeholder="value or A+B, sqrt(N)…" spellCheck={false}/>
                     {showComputed && (
@@ -1989,7 +2153,7 @@ const toolModeRef    = useRef('pan');
 
       {/* Nodes */}
       {nodes.map(node => (
-        <div key={node.id} className="matrix-node"
+        <div key={node.id} className={`matrix-node${node._dimError ? ' node-error' : ''}`}
           ref={el=>{ if(el) nodeEls.current.set(node.id,el); else nodeEls.current.delete(node.id); }}
           style={{
             position:'absolute', transformOrigin:'top left',
@@ -1997,7 +2161,7 @@ const toolModeRef    = useRef('pan');
             // Body color is rendered by a ::before pseudo-element (see CSS)
             // so slot dots can sit BEHIND the body via z-index: -1 while
             // still painting above the canvas grid.
-            '--node-bg': (node.type==='matmul' || node.type==='linear' || node.type==='relu' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu' || node.type==='masked_fill') ? '#e4e4e4'
+            '--node-bg': (node.type==='matmul' || node.type==='linear' || node.type==='relu' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu' || node.type==='masked_fill' || node.type==='dropout' || node.type==='slice' || node.type==='view' || node.type==='contiguous') ? '#e4e4e4'
                         : (node.color??'#ffffff'),
           }}
           onMouseDown={e=>handleNodeMouseDown(e,node)}
@@ -2006,7 +2170,7 @@ const toolModeRef    = useRef('pan');
           {node.type==='matrix' && (
             <>
               <ModuleName>{node.name}</ModuleName>
-              <MatrixDims text={'(' + (node.shape ?? ['BATCH', 4]).join(', ') + ')'} />
+              <MatrixDims text={'(' + (node.shape ?? [4, 4]).join(', ') + ')'} />
             </>
           )}
           {(node.type==='relu' || node.type==='linear' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu') && null /* slot dots rendered below */}
@@ -2092,6 +2256,73 @@ const toolModeRef    = useRef('pan');
                 <ModuleName color="#ee4c2c">ReLU</ModuleName>
                 <div style={{ display:'block', width:'100%', textAlign:'center' }}>
                   <MatrixDims text="max(0, x)" />
+                </div>
+              </>
+            );
+          })()}
+          {node.type==='view' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            const shapeStr = String(node.shape ?? '-1').replace(/[()[\]]/g,'').trim();
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color="#ee4c2c">View</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  <MatrixDims text={`(${shapeStr})`} />
+                </div>
+              </>
+            );
+          })()}
+          {node.type==='dropout' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color="#ee4c2c">Dropout</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  <MatrixDims text={`p = ${node.p ?? 0.5}`} />
+                </div>
+              </>
+            );
+          })()}
+          {node.type==='slice' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            const dimsDisplay = String(node.dims ?? ':');
+            const label = dimsDisplay.startsWith('[') ? dimsDisplay : `[${dimsDisplay}]`;
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color="#ee4c2c">Slice</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  <MatrixDims text={label} />
+                </div>
+              </>
+            );
+          })()}
+          {node.type==='contiguous' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color="#ee4c2c">contiguous</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  <MatrixDims text=".contiguous()" />
                 </div>
               </>
             );
