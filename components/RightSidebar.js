@@ -120,7 +120,7 @@ export default function RightSidebar() {
 
   return (
     <div className="left-sidebar">
-      <Section title={moduleLabel}
+      <Section title={moduleLabel}>
         {node?._dimError && (
           <div style={{
             background: 'rgba(238,76,44,0.10)',
