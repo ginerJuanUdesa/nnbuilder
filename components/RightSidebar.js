@@ -40,7 +40,7 @@ export default function RightSidebar() {
     const h = (e) => {
       const next = e.detail ? { ...e.detail } : null;
       setNode(next);
-      setGroup(null);
+      // group is updated by the groupselect event fired from the same useEffect
       setShapeStr(next?.shape && Array.isArray(next.shape) ? next.shape.join(', ') : '');
     };
     window.addEventListener('nodeselect', h);
@@ -120,36 +120,7 @@ export default function RightSidebar() {
 
   return (
     <div className="left-sidebar">
-      {/* Group (superbox) property panel — shown instead of module panel */}
-      {group && (
-        <Section title={
-          <span style={{ color: SUPERBOX_COLORS[group.colorIdx % SUPERBOX_COLORS.length] }}>
-            GROUP
-          </span>
-        }>
-          <div className="mi-field">
-            <label className="mi-label">Name</label>
-            <input
-              className="mi-input"
-              value={groupName}
-              onChange={e => updateGroup(e.target.value)}
-              placeholder="group name"
-              spellCheck={false}
-              autoFocus
-            />
-          </div>
-          <div className="wi-row">
-            <span className="wi-label" style={{ fontStyle:'italic', color:'#888', fontSize:'11px' }}>
-              {(group.layerIds || []).length} node{(group.layerIds || []).length !== 1 ? 's' : ''}
-            </span>
-          </div>
-          <span className="mi-hint">
-            Press G to draw groups. Drag the border to resize. Delete to remove.
-          </span>
-        </Section>
-      )}
-
-      {!group && <Section title={moduleLabel}>
+      <Section title={moduleLabel}
         {node?._dimError && (
           <div style={{
             background: 'rgba(238,76,44,0.10)',
@@ -443,7 +414,35 @@ export default function RightSidebar() {
             {ghostToggle}
           </div>
         )}
-      </Section>}
+      </Section>
+
+      {/* Group panel — shown below module info when selection is inside a group */}
+      {group && (
+        <Section title={
+          <span style={{ color: SUPERBOX_COLORS[group.colorIdx % SUPERBOX_COLORS.length] }}>
+            GROUP
+          </span>
+        }>
+          <div className="mi-field">
+            <label className="mi-label">Name</label>
+            <input
+              className="mi-input"
+              value={groupName}
+              onChange={e => updateGroup(e.target.value)}
+              placeholder="group name"
+              spellCheck={false}
+            />
+          </div>
+          <div className="wi-row">
+            <span className="wi-label" style={{ fontStyle:'italic', color:'#888', fontSize:'11px' }}>
+              {(group.layerIds || []).length} node{(group.layerIds || []).length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <span className="mi-hint">
+            Drag group border to resize. Delete to remove.
+          </span>
+        </Section>
+      )}
     </div>
   );
 }

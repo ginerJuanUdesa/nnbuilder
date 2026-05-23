@@ -1225,6 +1225,11 @@ const toolModeRef    = useRef('pan');
     const arr = [...selectedIds];
     const node = arr.length===1 ? nodesRef.current.find(n=>n.id===arr[0]) : null;
     window.dispatchEvent(new CustomEvent('nodeselect', { detail: node ?? null }));
+    // Also emit the group containing this node (null if none / multi-select)
+    const containingGroup = node
+      ? (superboxesRef.current.find(sb => (sb.layerIds || []).includes(node.id)) ?? null)
+      : null;
+    window.dispatchEvent(new CustomEvent('groupselect', { detail: containingGroup }));
   }, [selectedIds]);
 
   useEffect(() => {
@@ -2173,6 +2178,18 @@ const toolModeRef    = useRef('pan');
             const n = nodesRef.current.find(x => x.id === lid);
             if (n) { n.x = snapToGrid(n.x + ddx); n.y = snapToGrid(n.y + ddy); }
           });
+
+          // Snap vertices of internal connections to grid
+          const _snapMovedIds = new Set([...(sb.layerIds || []), ..._dLayerIds]);
+          connectionsRef.current.forEach(conn => {
+            if (_snapMovedIds.has(conn.fromNodeId) && _snapMovedIds.has(conn.toNodeId)) {
+              conn.vertices = (conn.vertices || []).map(v => ({
+                x: snapToGrid(v.x + ddx),
+                y: snapToGrid(v.y + ddy),
+              }));
+            }
+          });
+          setConnectionsRef.current([...connectionsRef.current]);
 
           syncAll();
           // Commit node positions into React state
