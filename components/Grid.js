@@ -1076,7 +1076,7 @@ const toolModeRef    = useRef('pan');
   const COALESCE_MS = 200;
   useEffect(() => {
     if (!hydrated) return;
-    const snap = JSON.stringify({ nodes, connections });
+    const snap = JSON.stringify({ nodes, connections, superboxes });
     if (undoLockRef.current) {
       lastSnapRef.current = snap;
       undoLockRef.current = false;
@@ -1096,18 +1096,19 @@ const toolModeRef    = useRef('pan');
       lastSnapTimeRef.current = now;
     }
     lastSnapRef.current = snap;
-  }, [nodes, connections, hydrated]);
+  }, [nodes, connections, superboxes, hydrated]);
 
   const doUndo = () => {
     const stack = undoStackRef.current;
     if (!stack.length) return;
-    const cur = JSON.stringify({ nodes: nodesRef.current, connections: connectionsRef.current });
+    const cur = JSON.stringify({ nodes: nodesRef.current, connections: connectionsRef.current, superboxes: superboxesRef.current });
     redoStackRef.current.push(cur);
     const prev = stack.pop();
     const parsed = JSON.parse(prev);
     undoLockRef.current = true;
     setNodes(parsed.nodes || []);
     setConnections(parsed.connections || []);
+    setSuperboxes(parsed.superboxes || []);
     setSelectedIds(new Set());
     setSelectedConnIds(new Set());
   };
@@ -1115,13 +1116,14 @@ const toolModeRef    = useRef('pan');
   const doRedo = () => {
     const stack = redoStackRef.current;
     if (!stack.length) return;
-    const cur = JSON.stringify({ nodes: nodesRef.current, connections: connectionsRef.current });
+    const cur = JSON.stringify({ nodes: nodesRef.current, connections: connectionsRef.current, superboxes: superboxesRef.current });
     undoStackRef.current.push(cur);
     const next = stack.pop();
     const parsed = JSON.parse(next);
     undoLockRef.current = true;
     setNodes(parsed.nodes || []);
     setConnections(parsed.connections || []);
+    setSuperboxes(parsed.superboxes || []);
     setSelectedIds(new Set());
     setSelectedConnIds(new Set());
   };
