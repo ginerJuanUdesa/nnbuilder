@@ -65,6 +65,8 @@ const SPACING   = 28;
 const MAJOR     = 5;
 const NODE_SIZE = SPACING * 4; // 112 world-units
 
+const SUPERBOX_COLORS = ['#4488ff','#ff8844','#44ff88','#ff44ff','#ffff44','#44bbff'];
+
 // ── Slot position helpers ──────────────────────────────────────────────────
 
 // Grid-aligned fractions: 0.25 = SPACING, 0.5 = 2*SPACING, 0.75 = 3*SPACING
@@ -356,6 +358,29 @@ export default function Grid() {
   const [hydrated, setHydrated] = useState(false);
   const [varsCollapsed, setVarsCollapsed] = useState(false);
 
+  // ── Superboxes (groups) ───────────────────────────────────────────────────
+  const [superboxes, setSuperboxes] = useState([]);
+  const superboxesRef = useRef([]);
+  const selectedSuperboxIdRef = useRef(null);
+  // draw-mode: user holds G key to drag-draw a new group rect
+  const drawModeRef    = useRef(false);
+  const sbDrawStartRef = useRef(null);   // { wx, wy }
+  const sbDrawCurrentRef = useRef(null); // { wx, wy }
+  // drag state for moving an existing SB
+  const sbDraggingRef  = useRef(false);
+  const sbDragIdRef    = useRef(null);
+  const sbDragOffRef   = useRef({ x: 0, y: 0 });
+  // resize state
+  const sbResizingRef      = useRef(false);
+  const sbResizeIdRef      = useRef(null);
+  const sbResizeEdgeRef    = useRef(null);
+  const sbResizeStartRef   = useRef({ x: 0, y: 0 });
+  const sbResizeOrigRef    = useRef({ x: 0, y: 0, w: 0, h: 0 });
+  // eye-button hit areas rebuilt each frame
+  const sbEyeBtnsRef = useRef([]);
+  // setSuperboxes ref so canvas-effect closures can call it
+  const setSuperboxesRef = useRef(setSuperboxes); setSuperboxesRef.current = setSuperboxes;
+
   useEffect(() => {
     if (hydrated) return;
     // One-shot coord rebase: the point at world (-170, -1) becomes the new
@@ -402,6 +427,10 @@ export default function Grid() {
           ? loaded
           : [{ name:'BATCH', value:'32' }, ...loaded.filter(x => x.name !== 'BATCH')]);
       }
+    } catch {}
+    try {
+      const g = localStorage.getItem('tb_groups');
+      if (g) setSuperboxes(JSON.parse(g));
     } catch {}
     setHydrated(true);
   }, [hydrated]);
@@ -1209,6 +1238,37 @@ const toolModeRef    = useRef('pan');
     return () => window.removeEventListener('nodeupdate', h);
   }, []);
 
+  useEffect(() => {
+    superboxesRef.current = superboxes;
+    drawRef.current?.();
+    if (hydrated) {
+      try { localStorage.setItem('tb_groups', JSON.stringify(superboxes)); } catch {}
+    }
+  }, [superboxes, hydrated]);
+
+  // ── Superbox sync helpers (component-level so handleNodeMouseDown can call them) ──
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  function syncLayerMembershipOuter() {
+    const sbs = superboxesRef.current;
+    const ns  = nodesRef.current;
+    for (const sb of sbs) sb.layerIds = [];
+    for (const n of ns) {
+      const cx = n.x + NODE_SIZE / 2, cy = n.y + NODE_SIZE / 2;
+      let best = null, bestArea = Infinity;
+      for (const sb of sbs) {
+        if (cx >= sb.x && cx <= sb.x + sb.w &&
+            cy >= sb.y && cy <= sb.y + sb.h) {
+          const area = sb.w * sb.h;
+          if (area < bestArea) { best = sb; bestArea = area; }
+        }
+      }
+      if (best) best.layerIds.push(n.id);
+    }
+  }
+  function commitSuperboxesOuter() {
+    setSuperboxes([...superboxesRef.current]);
+  }
+
   // ── Main canvas effect ──
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1259,6 +1319,16 @@ const toolModeRef    = useRef('pan');
     }
     worldInfoLoop();
 
+    // Persist group name changes originating in RightSidebar
+    function onGroupNameUpdate(e) {
+      const sb = superboxesRef.current.find(s => s.id === e.detail.id);
+      if (sb) {
+        sb.name = e.detail.name;
+        commitSuperboxes();
+        draw();
+      }
+    }
+
     function positionPanel() {
       // Pin the Variables panel to the top-left of the viewport (screen
       // coords), independent of pan/zoom. Previously it was anchored to
@@ -1269,6 +1339,108 @@ const toolModeRef    = useRef('pan');
       p.style.top  = '12px';
       p.style.transform = 'scale(0.75)';
       p.style.transformOrigin = 'top left';
+    }
+
+    // ── Superbox utilities ─────────────────────────────────────────────────
+    function snapToGrid(v) { return Math.round(v / SPACING) * SPACING; }
+
+    // For each SB, find the tightest containing SB with strictly larger area.
+    function syncSbParentIds() {
+      const sbs = superboxesRef.current;
+      for (const sb of sbs) {
+        const cx = sb.x + sb.w / 2, cy = sb.y + sb.h / 2;
+        let best = null, bestArea = Infinity;
+        for (const other of sbs) {
+          if (other.id === sb.id) continue;
+          const area = other.w * other.h;
+          if (area <= sb.w * sb.h) continue;
+          if (area >= bestArea) continue;
+          if (cx >= other.x && cx <= other.x + other.w &&
+              cy >= other.y && cy <= other.y + other.h) {
+            best = other.id; bestArea = area;
+          }
+        }
+        sb.parentId = best;
+      }
+    }
+
+    // Assign each node to deepest (smallest area) containing SB only.
+    function syncLayerMembership() {
+      const sbs = superboxesRef.current;
+      const ns  = nodesRef.current;
+      for (const sb of sbs) sb.layerIds = [];
+      for (const n of ns) {
+        const cx = n.x + NODE_SIZE / 2, cy = n.y + NODE_SIZE / 2;
+        let best = null, bestArea = Infinity;
+        for (const sb of sbs) {
+          if (cx >= sb.x && cx <= sb.x + sb.w &&
+              cy >= sb.y && cy <= sb.y + sb.h) {
+            const area = sb.w * sb.h;
+            if (area < bestArea) { best = sb; bestArea = area; }
+          }
+        }
+        if (best) best.layerIds.push(n.id);
+      }
+    }
+
+    function syncAll() { syncSbParentIds(); syncLayerMembership(); }
+
+    function hitTestSuperbox(wx, wy) {
+      const sbs = superboxesRef.current;
+      // Build depth map for deepest-first search
+      const parentMap = new Map();
+      for (const sb of sbs) if (sb.parentId) parentMap.set(sb.id, sb.parentId);
+      const depth = (id) => {
+        let d = 0, cur = id;
+        while (parentMap.has(cur)) { cur = parentMap.get(cur); if (++d > 20) break; }
+        return d;
+      };
+      const sorted = [...sbs].sort((a, b) => depth(b.id) - depth(a.id)); // deepest first
+      for (const sb of sorted) {
+        if (sb.bgVisible === false) continue;
+        if (wx >= sb.x && wx <= sb.x + sb.w && wy >= sb.y && wy <= sb.y + sb.h) return sb;
+      }
+      return null;
+    }
+
+    const _SB_EDGE_CURSORS = {
+      n:'n-resize', s:'s-resize', e:'e-resize', w:'w-resize',
+      ne:'ne-resize', nw:'nw-resize', se:'se-resize', sw:'sw-resize',
+    };
+
+    function hitTestSuperboxEdge(wx, wy) {
+      const sbs = superboxesRef.current;
+      const th = Math.max(6, 8 / cam.zoom);
+      for (let i = sbs.length - 1; i >= 0; i--) {
+        const sb = sbs[i];
+        if (sb.bgVisible === false) continue;
+        const { x, y, w, h } = sb;
+        const inX = wx >= x - th && wx <= x + w + th;
+        const inY = wy >= y - th && wy <= y + h + th;
+        if (!inX || !inY) continue;
+        const onL = wx >= x - th && wx <= x + th;
+        const onR = wx >= x + w - th && wx <= x + w + th;
+        const onT = wy >= y - th && wy <= y + th;
+        const onB = wy >= y + h - th && wy <= y + h + th;
+        if (onL && onT) return { sb, edge: 'nw' };
+        if (onR && onT) return { sb, edge: 'ne' };
+        if (onL && onB) return { sb, edge: 'sw' };
+        if (onR && onB) return { sb, edge: 'se' };
+        if (onL && wy >= y && wy <= y + h) return { sb, edge: 'w' };
+        if (onR && wy >= y && wy <= y + h) return { sb, edge: 'e' };
+        if (onT && wx >= x && wx <= x + w) return { sb, edge: 'n' };
+        if (onB && wx >= x && wx <= x + w) return { sb, edge: 's' };
+      }
+      return null;
+    }
+
+    function commitSuperboxes() {
+      setSuperboxesRef.current([...superboxesRef.current]);
+    }
+
+    // Fire groupselect event so RightSidebar can show group properties
+    function emitGroupSelect(sb) {
+      window.dispatchEvent(new CustomEvent('groupselect', { detail: sb ?? null }));
     }
 
     function draw() {
@@ -1287,6 +1459,104 @@ const toolModeRef    = useRef('pan');
       for (let y=oy-step; y<=H+step; y+=step,j++) {
         ctx.strokeStyle=(j%MAJOR===0)?'#bdbdbd':'#dcdcdc';
         ctx.beginPath(); ctx.moveTo(0,Math.round(y)+.5); ctx.lineTo(W,Math.round(y)+.5); ctx.stroke();
+      }
+
+      // ── Draw superboxes (below connections and nodes) ──────────────────
+      sbEyeBtnsRef.current = [];
+      {
+        const sbsToDraw = superboxesRef.current;
+        // Build depth map for draw order (shallow first so nested borders paint on top)
+        const _pMap = new Map();
+        for (const sb of sbsToDraw) if (sb.parentId) _pMap.set(sb.id, sb.parentId);
+        const _depth = (id) => {
+          let d = 0, cur = id;
+          while (_pMap.has(cur)) { cur = _pMap.get(cur); if (++d > 20) break; }
+          return d;
+        };
+        const sorted = [...sbsToDraw].sort((a, b) => _depth(a.id) - _depth(b.id));
+        for (const sb of sorted) {
+          const { x, y, w, h } = sb;
+          const sx = (x - cam.x) * z;
+          const sy = (y - cam.y) * z;
+          const sw = w * z;
+          const sh = h * z;
+          // viewport cull
+          if (sx + sw + 60 < 0 || sx - 60 > W || sy + sh + 60 < 0 || sy - 60 > H) continue;
+          const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
+          const isSelected = selectedSuperboxIdRef.current === sb.id;
+          // fill
+          if (sb.bgVisible !== false) {
+            ctx.save();
+            ctx.globalAlpha = 0.08;
+            ctx.fillStyle = color;
+            ctx.fillRect(sx, sy, sw, sh);
+            ctx.restore();
+          }
+          // border
+          ctx.save();
+          ctx.globalAlpha = isSelected ? 0.9 : 0.45;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = isSelected ? 2 * dpr : 1 * dpr;
+          if (!isSelected) ctx.setLineDash([6, 4]);
+          ctx.strokeRect(sx, sy, sw, sh);
+          ctx.setLineDash([]);
+          ctx.restore();
+          // label + eye button
+          if (cam.zoom > 0.3) {
+            const depth = _depth(sb.id);
+            const fontSize = Math.max(11, (14 - depth * 2) * cam.zoom) * dpr;
+            const indent = depth * Math.max(8, 10 * cam.zoom) * dpr;
+            ctx.save();
+            ctx.font = `bold ${fontSize}px monospace`;
+            ctx.fillStyle = color;
+            ctx.globalAlpha = isSelected ? 0.95 : 0.75;
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            const label = sb.name || '';
+            const labelX = sx + 6 * dpr + indent;
+            const labelY = sy - 3 * dpr;
+            if (label) ctx.fillText(label, labelX, labelY);
+            const nameW = label ? ctx.measureText(label).width : 0;
+            const eyeR = Math.max(5 * dpr, fontSize * 0.45);
+            const eyeCX = labelX + nameW + (label ? eyeR * 1.5 : eyeR * 0.5);
+            const eyeCY = labelY - fontSize * 0.38;
+            // store hit area in screen coords (actual screen px, not dpr-scaled)
+            sbEyeBtnsRef.current.push({ sbId: sb.id, cx: eyeCX / dpr, cy: eyeCY / dpr, r: eyeR / dpr });
+            // draw eye icon
+            ctx.strokeStyle = color;
+            ctx.lineWidth = Math.max(1, eyeR * 0.28);
+            ctx.beginPath();
+            ctx.ellipse(eyeCX, eyeCY, eyeR, eyeR * 0.6, 0, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(eyeCX, eyeCY, eyeR * 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            if (sb.bgVisible === false) {
+              ctx.beginPath();
+              ctx.moveTo(eyeCX - eyeR * 0.85, eyeCY + eyeR * 0.55);
+              ctx.lineTo(eyeCX + eyeR * 0.85, eyeCY - eyeR * 0.55);
+              ctx.stroke();
+            }
+            ctx.restore();
+          }
+        }
+        // Draw-mode preview rect
+        if (drawModeRef.current && sbDrawStartRef.current && sbDrawCurrentRef.current) {
+          const a = sbDrawStartRef.current, b = sbDrawCurrentRef.current;
+          const ax = (a.wx - cam.x) * z, ay = (a.wy - cam.y) * z;
+          const bx = (b.wx - cam.x) * z, by = (b.wy - cam.y) * z;
+          ctx.save();
+          ctx.globalAlpha = 0.12;
+          ctx.fillStyle = '#4488ff';
+          ctx.fillRect(Math.min(ax,bx), Math.min(ay,by), Math.abs(bx-ax), Math.abs(by-ay));
+          ctx.globalAlpha = 0.8;
+          ctx.strokeStyle = '#4488ff';
+          ctx.lineWidth = 1.5 * dpr;
+          ctx.setLineDash([5 * dpr, 4 * dpr]);
+          ctx.strokeRect(Math.min(ax,bx), Math.min(ay,by), Math.abs(bx-ax), Math.abs(by-ay));
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
       }
 
       // draw connections (arrows deferred — see _arrowPass below)
@@ -1567,7 +1837,42 @@ const toolModeRef    = useRef('pan');
       const wy=cam.y+(e.clientY-r.top)/cam.zoom;
       const cx=e.clientX-r.left, cy=e.clientY-r.top;
 
-      // ── Connect mode ──
+      // ── Draw mode (G key): start superbox rect ──
+      if (drawModeRef.current) {
+        sbDrawStartRef.current   = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+        sbDrawCurrentRef.current = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+        draw(); return;
+      }
+
+      // ── Eye button hit (screen coords, before world-space checks) ──
+      for (const btn of sbEyeBtnsRef.current) {
+        const ddx = cx - btn.cx, ddy = cy - btn.cy;
+        if (ddx * ddx + ddy * ddy <= btn.r * btn.r * 2.5) {
+          const sb = superboxesRef.current.find(s => s.id === btn.sbId);
+          if (sb) {
+            sb.bgVisible = sb.bgVisible === false ? true : false;
+            commitSuperboxes(); draw();
+          }
+          return;
+        }
+      }
+
+      // ── Superbox edge (resize) ──
+      const sbEdgeHit = hitTestSuperboxEdge(wx, wy);
+      if (sbEdgeHit) {
+        const { sb, edge } = sbEdgeHit;
+        selectedSuperboxIdRef.current = sb.id;
+        emitGroupSelect(sb);
+        sbResizingRef.current    = true;
+        sbResizeIdRef.current    = sb.id;
+        sbResizeEdgeRef.current  = edge;
+        sbResizeStartRef.current = { x: wx, y: wy };
+        sbResizeOrigRef.current  = { x: sb.x, y: sb.y, w: sb.w, h: sb.h };
+        stage.style.cursor = _SB_EDGE_CURSORS[edge];
+        draw(); return;
+      }
+
+      // ── Connect mode ── (bypass superbox body so panning still works in connect mode)
       if (toolModeRef.current==='connect') {
         const pc = pendingConnRef.current;
         if (!pc) {
@@ -1631,6 +1936,27 @@ const toolModeRef    = useRef('pan');
         }
       }
 
+      // ── Superbox body (drag / select) — pan mode only ──
+      const sbHit = hitTestSuperbox(wx, wy);
+      if (sbHit) {
+        selectedSuperboxIdRef.current = sbHit.id;
+        setSelectedIdsRef.current(new Set());
+        setSelectedConnIdsRef.current(new Set());
+        emitGroupSelect(sbHit);
+        sbDraggingRef.current = true;
+        sbDragIdRef.current   = sbHit.id;
+        sbDragOffRef.current  = { x: wx - sbHit.x, y: wy - sbHit.y };
+        stage.style.cursor = 'move';
+        draw(); return;
+      }
+
+      // Deselect superbox when clicking empty canvas
+      if (selectedSuperboxIdRef.current !== null) {
+        selectedSuperboxIdRef.current = null;
+        emitGroupSelect(null);
+        draw();
+      }
+
       // Pan
       panning=true; sx=e.clientX; sy=e.clientY; scx=cam.x; scy=cam.y;
       stage.classList.add('panning');
@@ -1661,6 +1987,83 @@ const toolModeRef    = useRef('pan');
         draw(); return;
       }
 
+      // superbox draw-mode: update live preview
+      if (drawModeRef.current && sbDrawStartRef.current) {
+        sbDrawCurrentRef.current = { wx: snapToGrid(wx), wy: snapToGrid(wy) };
+        draw(); return;
+      }
+
+      // superbox resize
+      if (sbResizingRef.current) {
+        movedRef.current = true;
+        const sb = superboxesRef.current.find(s => s.id === sbResizeIdRef.current);
+        if (sb) {
+          const orig  = sbResizeOrigRef.current;
+          const start = sbResizeStartRef.current;
+          const ddx = wx - start.x, ddy = wy - start.y;
+          const edge = sbResizeEdgeRef.current;
+          if (edge.includes('e')) sb.w = Math.max(SPACING, orig.w + ddx);
+          if (edge.includes('s')) sb.h = Math.max(SPACING, orig.h + ddy);
+          if (edge.includes('w')) {
+            const nw = Math.max(SPACING, orig.w - ddx);
+            sb.x = orig.x + orig.w - nw; sb.w = nw;
+          }
+          if (edge.includes('n')) {
+            const nh = Math.max(SPACING, orig.h - ddy);
+            sb.y = orig.y + orig.h - nh; sb.h = nh;
+          }
+          draw();
+        }
+        return;
+      }
+
+      // superbox drag (moves SB + all descendant nodes)
+      if (sbDraggingRef.current) {
+        movedRef.current = true;
+        const sb = superboxesRef.current.find(s => s.id === sbDragIdRef.current);
+        if (sb) {
+          const off = sbDragOffRef.current;
+          const ddx = wx - off.x - sb.x;
+          const ddy = wy - off.y - sb.y;
+          sb.x += ddx; sb.y += ddy;
+
+          // Collect descendant SBs and layer IDs (no double-move)
+          const _descSbIds    = new Set();
+          const _descLayerIds = new Set();
+          const _collectDesc  = pid => {
+            superboxesRef.current.forEach(c => {
+              if (c.parentId === pid) {
+                _descSbIds.add(c.id);
+                (c.layerIds || []).forEach(id => _descLayerIds.add(id));
+                _collectDesc(c.id);
+              }
+            });
+          };
+          _collectDesc(sb.id);
+
+          // Move direct layers (skip those living inside a child SB)
+          (sb.layerIds || []).forEach(lid => {
+            if (_descLayerIds.has(lid)) return;
+            const n = nodesRef.current.find(x => x.id === lid);
+            if (n) { n.x += ddx; n.y += ddy; }
+          });
+          // Move descendant SBs
+          _descSbIds.forEach(cid => {
+            const c = superboxesRef.current.find(s => s.id === cid);
+            if (c) { c.x += ddx; c.y += ddy; }
+          });
+          // Move layers inside descendant SBs
+          _descLayerIds.forEach(lid => {
+            const n = nodesRef.current.find(x => x.id === lid);
+            if (n) { n.x += ddx; n.y += ddy; }
+          });
+          // Flush node positions to DOM
+          positionNodes();
+          draw();
+        }
+        return;
+      }
+
       // selection rect
       if (isSelectingRef.current) {
         movedRef.current=true;
@@ -1676,6 +2079,101 @@ const toolModeRef    = useRef('pan');
 
     function up() {
       if (draggingVertRef.current) { draggingVertRef.current=null; return; }
+
+      // Finalize superbox draw
+      if (drawModeRef.current && sbDrawStartRef.current && sbDrawCurrentRef.current) {
+        const a = sbDrawStartRef.current, b = sbDrawCurrentRef.current;
+        const x1 = snapToGrid(Math.min(a.wx, b.wx));
+        const y1 = snapToGrid(Math.min(a.wy, b.wy));
+        const x2 = Math.max(snapToGrid(Math.max(a.wx, b.wx)), x1 + SPACING * 2);
+        const y2 = Math.max(snapToGrid(Math.max(a.wy, b.wy)), y1 + SPACING * 2);
+        if (x2 - x1 >= SPACING * 2 && y2 - y1 >= SPACING * 2) {
+          const newSb = {
+            id: Date.now(),
+            name: '',
+            x: x1, y: y1, w: x2 - x1, h: y2 - y1,
+            layerIds: [],
+            colorIdx: superboxesRef.current.length % SUPERBOX_COLORS.length,
+            parentId: null,
+            bgVisible: true,
+          };
+          superboxesRef.current.push(newSb);
+          syncAll();
+          selectedSuperboxIdRef.current = newSb.id;
+          emitGroupSelect(newSb);
+          commitSuperboxes();
+        }
+        sbDrawStartRef.current   = null;
+        sbDrawCurrentRef.current = null;
+        // Stay in draw mode so user can keep drawing more groups
+        draw(); return;
+      }
+
+      // Finalize superbox resize — snap to grid
+      if (sbResizingRef.current) {
+        const sb = superboxesRef.current.find(s => s.id === sbResizeIdRef.current);
+        if (sb) {
+          sb.x = snapToGrid(sb.x); sb.y = snapToGrid(sb.y);
+          sb.w = Math.max(SPACING, snapToGrid(sb.w));
+          sb.h = Math.max(SPACING, snapToGrid(sb.h));
+          syncAll();
+          commitSuperboxes();
+        }
+        sbResizingRef.current  = false;
+        sbResizeIdRef.current  = null;
+        sbResizeEdgeRef.current = null;
+        stage.style.cursor = drawModeRef.current ? 'crosshair' : '';
+        draw(); return;
+      }
+
+      // Finalize superbox drag — snap to grid, also snap moved nodes
+      if (sbDraggingRef.current) {
+        const sb = superboxesRef.current.find(s => s.id === sbDragIdRef.current);
+        if (sb) {
+          const snappedX = snapToGrid(sb.x);
+          const snappedY = snapToGrid(sb.y);
+          const ddx = snappedX - sb.x;
+          const ddy = snappedY - sb.y;
+          sb.x = snappedX; sb.y = snappedY;
+
+          const _dSbIds    = new Set();
+          const _dLayerIds = new Set();
+          const _cD = pid => {
+            superboxesRef.current.forEach(c => {
+              if (c.parentId === pid) {
+                _dSbIds.add(c.id);
+                (c.layerIds || []).forEach(id => _dLayerIds.add(id));
+                _cD(c.id);
+              }
+            });
+          };
+          _cD(sb.id);
+
+          (sb.layerIds || []).forEach(lid => {
+            if (_dLayerIds.has(lid)) return;
+            const n = nodesRef.current.find(x => x.id === lid);
+            if (n) { n.x = snapToGrid(n.x + ddx); n.y = snapToGrid(n.y + ddy); }
+          });
+          _dSbIds.forEach(cid => {
+            const c = superboxesRef.current.find(s => s.id === cid);
+            if (c) { c.x = snapToGrid(c.x + ddx); c.y = snapToGrid(c.y + ddy); }
+          });
+          _dLayerIds.forEach(lid => {
+            const n = nodesRef.current.find(x => x.id === lid);
+            if (n) { n.x = snapToGrid(n.x + ddx); n.y = snapToGrid(n.y + ddy); }
+          });
+
+          syncAll();
+          // Commit node positions into React state
+          setNodesRef.current([...nodesRef.current]);
+          commitSuperboxes();
+        }
+        sbDraggingRef.current = false;
+        sbDragIdRef.current   = null;
+        stage.style.cursor = drawModeRef.current ? 'crosshair' : '';
+        draw(); return;
+      }
+
       if (isSelectingRef.current) {
         isSelectingRef.current=false;
         const sr=selRectRef.current; selRectRef.current=null;
@@ -1719,6 +2217,28 @@ const toolModeRef    = useRef('pan');
       if ((e.ctrlKey||e.metaKey)&&(e.key==='y'||(e.key==='z'&&e.shiftKey))) { e.preventDefault(); doRedoRef.current(); return; }
       if ((e.key==='s'||e.key==='S')&&!e.ctrlKey&&!e.metaKey) { setTool(toolModeRef.current==='select'?'pan':'select'); return; }
       if ((e.key==='c'||e.key==='C')&&!e.ctrlKey&&!e.metaKey) { setTool(toolModeRef.current==='connect'?'pan':'connect'); return; }
+      // G: toggle group draw mode
+      if ((e.key==='g'||e.key==='G')&&!e.ctrlKey&&!e.metaKey) {
+        drawModeRef.current = !drawModeRef.current;
+        sbDrawStartRef.current   = null;
+        sbDrawCurrentRef.current = null;
+        stage.style.cursor = drawModeRef.current ? 'crosshair' : '';
+        window.dispatchEvent(new CustomEvent('toolmodechanged', { detail: drawModeRef.current ? 'group' : 'pan' }));
+        draw(); return;
+      }
+      // Delete/Backspace: remove selected superbox
+      if ((e.key==='Delete'||e.key==='Backspace') && selectedSuperboxIdRef.current !== null) {
+        const idx = superboxesRef.current.findIndex(s => s.id === selectedSuperboxIdRef.current);
+        if (idx !== -1) {
+          superboxesRef.current.splice(idx, 1);
+          syncAll();
+          selectedSuperboxIdRef.current = null;
+          emitGroupSelect(null);
+          commitSuperboxes();
+          draw();
+        }
+        return;
+      }
       if ((e.key==='r'||e.key==='R')&&!e.ctrlKey&&!e.metaKey) {
         // Rotate every selected node 90° CW in place + re-route any conn
         // attached to a rotated node.
@@ -1842,7 +2362,13 @@ const toolModeRef    = useRef('pan');
       } else {
         nn = { id: Date.now(), type: 'matrix', name: 'W', shape: [4, 4], ...pos };
       }
-      setNodesRef.current(prev => [...prev, nn]);
+      setNodesRef.current(prev => {
+        const next = [...prev, nn];
+        nodesRef.current = next;
+        syncLayerMembership();
+        commitSuperboxes();
+        return next;
+      });
       setSelectedIdsRef.current(new Set([nn.id]));
     }
 
@@ -1863,6 +2389,7 @@ const toolModeRef    = useRef('pan');
         nodes: nodesRef.current,
         connections: connectionsRef.current,
         vars: varsRef.current,
+        groups: superboxesRef.current,
       };
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -1888,8 +2415,11 @@ const toolModeRef    = useRef('pan');
             if (Array.isArray(data.nodes))       setNodesRef.current(data.nodes);
             if (Array.isArray(data.connections)) setConnectionsRef.current(data.connections);
             if (Array.isArray(data.vars))        setVars(data.vars);
+            if (Array.isArray(data.groups))      setSuperboxesRef.current(data.groups);
             setSelectedIdsRef.current(new Set());
             setSelectedConnIdsRef.current(new Set());
+            selectedSuperboxIdRef.current = null;
+            emitGroupSelect(null);
           } catch (err) {
             alert('Load failed: ' + err.message);
           }
@@ -1907,6 +2437,7 @@ const toolModeRef    = useRef('pan');
     window.addEventListener('toolchange',onToolChange);
     window.addEventListener('tb-save', onSaveArch);
     window.addEventListener('tb-load', onLoadArch);
+    window.addEventListener('groupnameupdate', onGroupNameUpdate);
     stage.addEventListener('mousedown',down);
     stage.addEventListener('wheel',wheel,{passive:false});
     stage.addEventListener('dragover',dragOver);
@@ -1921,6 +2452,7 @@ const toolModeRef    = useRef('pan');
       window.removeEventListener('toolchange',onToolChange);
       window.removeEventListener('tb-save', onSaveArch);
       window.removeEventListener('tb-load', onLoadArch);
+      window.removeEventListener('groupnameupdate', onGroupNameUpdate);
       stage.removeEventListener('mousedown',down);
       stage.removeEventListener('wheel',wheel);
       stage.removeEventListener('dragover',dragOver);
@@ -2062,7 +2594,14 @@ const toolModeRef    = useRef('pan');
     };
     const onUp=()=>{
       const freed=lastPos.map(p=>({id:p.id,...freePos(p.x,p.y,dragIds)}));
-      setNodesRef.current(prev=>prev.map(n=>{ const f=freed.find(fp=>fp.id===n.id); return f?{...n,x:f.x,y:f.y}:n; }));
+      setNodesRef.current(prev=>{
+        const next = prev.map(n=>{ const f=freed.find(fp=>fp.id===n.id); return f?{...n,x:f.x,y:f.y}:n; });
+        // Sync superbox layer membership after node drag finishes
+        nodesRef.current = next;
+        syncLayerMembershipOuter();
+        commitSuperboxesOuter();
+        return next;
+      });
       window.removeEventListener('mousemove',onMove);
       window.removeEventListener('mouseup',onUp);
     };

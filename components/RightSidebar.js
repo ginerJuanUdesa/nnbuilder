@@ -25,8 +25,12 @@ const COLORS = [
   '#f06292', '#f8bbd0', '#a1887f', '#bcaaa4',
 ];
 
+const SUPERBOX_COLORS = ['#4488ff','#ff8844','#44ff88','#ff44ff','#ffff44','#44bbff'];
+
 export default function RightSidebar() {
   const [node, setNode] = useState(null);
+  const [group, setGroup] = useState(null);   // selected superbox
+  const [groupName, setGroupName] = useState('');
   // Raw shape-input string. Decoupled from node.shape so the user can type
   // ", " or trailing whitespace without the controlled value snapping back
   // (which previously ate every comma keystroke).
@@ -36,10 +40,22 @@ export default function RightSidebar() {
     const h = (e) => {
       const next = e.detail ? { ...e.detail } : null;
       setNode(next);
+      setGroup(null);
       setShapeStr(next?.shape && Array.isArray(next.shape) ? next.shape.join(', ') : '');
     };
     window.addEventListener('nodeselect', h);
     return () => window.removeEventListener('nodeselect', h);
+  }, []);
+
+  useEffect(() => {
+    const h = (e) => {
+      const next = e.detail ? { ...e.detail } : null;
+      setGroup(next);
+      setGroupName(next?.name ?? '');
+      if (next) setNode(null); // clear node selection when group is selected
+    };
+    window.addEventListener('groupselect', h);
+    return () => window.removeEventListener('groupselect', h);
   }, []);
 
   const update = (field, val) => {
@@ -47,6 +63,14 @@ export default function RightSidebar() {
     const updated = { ...node, [field]: val };
     setNode(updated);
     window.dispatchEvent(new CustomEvent('nodeupdate', { detail: updated }));
+  };
+
+  const updateGroup = (name) => {
+    if (!group) return;
+    group.name = name; // mutate in place (same object held by Grid.js ref)
+    setGroupName(name);
+    // Persist immediately via custom event
+    window.dispatchEvent(new CustomEvent('groupnameupdate', { detail: { id: group.id, name } }));
   };
 
   // Commit raw shape string into node.shape (drop empty tokens). Called on
@@ -96,7 +120,36 @@ export default function RightSidebar() {
 
   return (
     <div className="left-sidebar">
-      <Section title={moduleLabel}>
+      {/* Group (superbox) property panel — shown instead of module panel */}
+      {group && (
+        <Section title={
+          <span style={{ color: SUPERBOX_COLORS[group.colorIdx % SUPERBOX_COLORS.length] }}>
+            GROUP
+          </span>
+        }>
+          <div className="mi-field">
+            <label className="mi-label">Name</label>
+            <input
+              className="mi-input"
+              value={groupName}
+              onChange={e => updateGroup(e.target.value)}
+              placeholder="group name"
+              spellCheck={false}
+              autoFocus
+            />
+          </div>
+          <div className="wi-row">
+            <span className="wi-label" style={{ fontStyle:'italic', color:'#888', fontSize:'11px' }}>
+              {(group.layerIds || []).length} node{(group.layerIds || []).length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <span className="mi-hint">
+            Press G to draw groups. Drag the border to resize. Delete to remove.
+          </span>
+        </Section>
+      )}
+
+      {!group && <Section title={moduleLabel}>
         {node?._dimError && (
           <div style={{
             background: 'rgba(238,76,44,0.10)',
@@ -390,7 +443,7 @@ export default function RightSidebar() {
             {ghostToggle}
           </div>
         )}
-      </Section>
+      </Section>}
     </div>
   );
 }
