@@ -1485,11 +1485,12 @@ const toolModeRef    = useRef('pan');
           const color = SUPERBOX_COLORS[sb.colorIdx % SUPERBOX_COLORS.length];
           const isSelected = selectedSuperboxIdRef.current === sb.id;
           // fill
+          const sbR = 10 * dpr; // rounded corner radius
           if (sb.bgVisible !== false) {
             ctx.save();
             ctx.globalAlpha = 0.08;
             ctx.fillStyle = color;
-            ctx.fillRect(sx, sy, sw, sh);
+            ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, sbR); ctx.fill();
             ctx.restore();
           }
           // border
@@ -1498,7 +1499,7 @@ const toolModeRef    = useRef('pan');
           ctx.strokeStyle = color;
           ctx.lineWidth = isSelected ? 2 * dpr : 1 * dpr;
           if (!isSelected) ctx.setLineDash([6, 4]);
-          ctx.strokeRect(sx, sy, sw, sh);
+          ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, sbR); ctx.stroke();
           ctx.setLineDash([]);
           ctx.restore();
           // label + eye button
@@ -1546,14 +1547,15 @@ const toolModeRef    = useRef('pan');
           const ax = (a.wx - cam.x) * z, ay = (a.wy - cam.y) * z;
           const bx = (b.wx - cam.x) * z, by = (b.wy - cam.y) * z;
           ctx.save();
+          const _prX = Math.min(ax,bx), _prY = Math.min(ay,by), _prW = Math.abs(bx-ax), _prH = Math.abs(by-ay), _prR = 10 * dpr;
           ctx.globalAlpha = 0.12;
           ctx.fillStyle = '#4488ff';
-          ctx.fillRect(Math.min(ax,bx), Math.min(ay,by), Math.abs(bx-ax), Math.abs(by-ay));
+          ctx.beginPath(); ctx.roundRect(_prX, _prY, _prW, _prH, _prR); ctx.fill();
           ctx.globalAlpha = 0.8;
           ctx.strokeStyle = '#4488ff';
           ctx.lineWidth = 1.5 * dpr;
           ctx.setLineDash([5 * dpr, 4 * dpr]);
-          ctx.strokeRect(Math.min(ax,bx), Math.min(ay,by), Math.abs(bx-ax), Math.abs(by-ay));
+          ctx.beginPath(); ctx.roundRect(_prX, _prY, _prW, _prH, _prR); ctx.stroke();
           ctx.setLineDash([]);
           ctx.restore();
         }
@@ -1822,7 +1824,9 @@ const toolModeRef    = useRef('pan');
 
     function setTool(mode) {
       toolModeRef.current=mode;
-      stage.style.cursor = (mode==='select'||mode==='connect') ? 'crosshair' : mode==='rotate' ? 'cell' : '';
+      drawModeRef.current = mode === 'group';
+      if (mode !== 'group') { sbDrawStartRef.current = null; sbDrawCurrentRef.current = null; }
+      stage.style.cursor = (mode==='select'||mode==='connect'||mode==='group') ? 'crosshair' : mode==='rotate' ? 'cell' : '';
       window.dispatchEvent(new CustomEvent('toolmodechanged',{ detail:mode }));
     }
     function onToolChange(e) { setTool(e.detail); }
@@ -2057,6 +2061,13 @@ const toolModeRef    = useRef('pan');
             const n = nodesRef.current.find(x => x.id === lid);
             if (n) { n.x += ddx; n.y += ddy; }
           });
+          // Move vertices of connections where both endpoints are inside this group
+          const _allMovedIds = new Set([...(sb.layerIds || []), ..._descLayerIds]);
+          connectionsRef.current.forEach(conn => {
+            if (_allMovedIds.has(conn.fromNodeId) && _allMovedIds.has(conn.toNodeId)) {
+              conn.vertices = (conn.vertices || []).map(v => ({ x: v.x + ddx, y: v.y + ddy }));
+            }
+          });
           // Flush node positions to DOM
           positionNodes();
           draw();
@@ -2105,7 +2116,7 @@ const toolModeRef    = useRef('pan');
         }
         sbDrawStartRef.current   = null;
         sbDrawCurrentRef.current = null;
-        // Stay in draw mode so user can keep drawing more groups
+        setTool('pan'); // exit draw mode after creating a group
         draw(); return;
       }
 
@@ -2219,11 +2230,7 @@ const toolModeRef    = useRef('pan');
       if ((e.key==='c'||e.key==='C')&&!e.ctrlKey&&!e.metaKey) { setTool(toolModeRef.current==='connect'?'pan':'connect'); return; }
       // G: toggle group draw mode
       if ((e.key==='g'||e.key==='G')&&!e.ctrlKey&&!e.metaKey) {
-        drawModeRef.current = !drawModeRef.current;
-        sbDrawStartRef.current   = null;
-        sbDrawCurrentRef.current = null;
-        stage.style.cursor = drawModeRef.current ? 'crosshair' : '';
-        window.dispatchEvent(new CustomEvent('toolmodechanged', { detail: drawModeRef.current ? 'group' : 'pan' }));
+        setTool(drawModeRef.current ? 'pan' : 'group');
         draw(); return;
       }
       // Delete/Backspace: remove selected superbox

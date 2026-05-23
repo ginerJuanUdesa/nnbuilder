@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-const IMPLEMENTED = new Set(['select', 'connect', 'save', 'load']);
+const IMPLEMENTED = new Set(['select', 'connect', 'group', 'save', 'load']);
 
 const TOOLS = [
   {
@@ -21,6 +21,18 @@ const TOOLS = [
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
         <circle cx="4" cy="10" r="2"/><circle cx="16" cy="10" r="2"/>
         <line x1="6" y1="10" x2="14" y2="10"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'group',
+    title: 'Group (G)',
+    icon: (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8">
+        <rect x="2" y="2" width="16" height="16" rx="3" strokeDasharray="4 2"/>
+        <rect x="5" y="5" width="4" height="4" rx="1" strokeWidth="1.4"/>
+        <rect x="11" y="5" width="4" height="4" rx="1" strokeWidth="1.4"/>
+        <rect x="5" y="11" width="4" height="4" rx="1" strokeWidth="1.4"/>
       </svg>
     ),
   },
@@ -111,6 +123,9 @@ export default function Toolbar() {
     } else if (toolId === 'connect') {
       const next = activeTool === 'connect' ? 'pan' : 'connect';
       window.dispatchEvent(new CustomEvent('toolchange', { detail: next }));
+    } else if (toolId === 'group') {
+      const next = activeTool === 'group' ? 'pan' : 'group';
+      window.dispatchEvent(new CustomEvent('toolchange', { detail: next }));
     } else if (toolId === 'save') {
       window.dispatchEvent(new CustomEvent('tb-save'));
     } else if (toolId === 'load') {
@@ -126,7 +141,7 @@ export default function Toolbar() {
           className={[
             'toolbar-btn',
             !IMPLEMENTED.has(tool.id) ? 'stub' : '',
-            ['select','connect'].includes(tool.id) && activeTool === tool.id ? 'active' : '',
+            ['select','connect','group'].includes(tool.id) && activeTool === tool.id ? 'active' : '',
           ].join(' ').trim()}
           title={IMPLEMENTED.has(tool.id) ? tool.title : ''}
           onClick={() => handleClick(tool.id)}
