@@ -323,6 +323,22 @@ must be mirrored in `subnetEval` (see Step 2b).
 
 ---
 
+## CI Test Maintenance
+
+The test suite in `tests/shapes.spec.js` has three suites that **must be updated** when you change connection rules or add layer types:
+
+| Suite | What to update |
+|-------|----------------|
+| `Shape propagation` | Add a new test case when a new layer type's shape formula is added |
+| `Serialization round-trip` | No changes needed unless persistence format changes |
+| `canConnect() matrix` | Update `ALL_TYPES` list + `KNOWN_EXCEPTIONS` when a type is added or `triu`-style restrictions change |
+
+**Rule:** any change to `canConnect()` in `js/utils.js` → update `ALL_TYPES` and exceptions in the matrix suite.
+Any new layer type → add a shape propagation test.
+CI will fail and block merge if these are out of sync.
+
+---
+
 ## Migration (renaming an existing type)
 
 If renaming `oldtype` → `newtype`, add migration in **both** places in `js/persistence.js`:
