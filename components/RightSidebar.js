@@ -31,6 +31,7 @@ export default function RightSidebar() {
   const [node, setNode] = useState(null);
   const [group, setGroup] = useState(null);   // selected superbox
   const [groupName, setGroupName] = useState('');
+  const [groupColorIdx, setGroupColorIdx] = useState(0);
   // Raw shape-input string. Decoupled from node.shape so the user can type
   // ", " or trailing whitespace without the controlled value snapping back
   // (which previously ate every comma keystroke).
@@ -52,6 +53,7 @@ export default function RightSidebar() {
       const next = e.detail ? { ...e.detail } : null;
       setGroup(next);
       setGroupName(next?.name ?? '');
+      setGroupColorIdx(next?.colorIdx ?? 0);
       if (next) setNode(null); // clear node selection when group is selected
     };
     window.addEventListener('groupselect', h);
@@ -67,10 +69,16 @@ export default function RightSidebar() {
 
   const updateGroup = (name) => {
     if (!group) return;
-    group.name = name; // mutate in place (same object held by Grid.js ref)
+    group.name = name;
     setGroupName(name);
-    // Persist immediately via custom event
     window.dispatchEvent(new CustomEvent('groupnameupdate', { detail: { id: group.id, name } }));
+  };
+
+  const updateGroupColor = (colorIdx) => {
+    if (!group) return;
+    group.colorIdx = colorIdx;
+    setGroupColorIdx(colorIdx);
+    window.dispatchEvent(new CustomEvent('groupcolorupdate', { detail: { id: group.id, colorIdx } }));
   };
 
   // Commit raw shape string into node.shape (drop empty tokens). Called on
@@ -419,7 +427,7 @@ export default function RightSidebar() {
       {/* Group panel — shown below module info when selection is inside a group */}
       {group && (
         <Section title={
-          <span style={{ color: SUPERBOX_COLORS[group.colorIdx % SUPERBOX_COLORS.length] }}>
+          <span style={{ color: SUPERBOX_COLORS[groupColorIdx % SUPERBOX_COLORS.length] }}>
             GROUP
           </span>
         }>
@@ -432,6 +440,24 @@ export default function RightSidebar() {
               placeholder="group name"
               spellCheck={false}
             />
+          </div>
+          <div className="mi-field">
+            <label className="mi-label">Color</label>
+            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+              {SUPERBOX_COLORS.map((c, i) => (
+                <button
+                  key={c}
+                  onClick={() => updateGroupColor(i)}
+                  style={{
+                    width: '22px', height: '22px', borderRadius: '50%',
+                    background: c, cursor: 'pointer',
+                    border: groupColorIdx === i ? '2.5px solid #ee4c2c' : '2px solid rgba(0,0,0,0.15)',
+                    padding: 0, outline: 'none',
+                  }}
+                  title={c}
+                />
+              ))}
+            </div>
           </div>
           <div className="wi-row">
             <span className="wi-label" style={{ fontStyle:'italic', color:'#888', fontSize:'11px' }}>

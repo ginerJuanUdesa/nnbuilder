@@ -1227,11 +1227,16 @@ const toolModeRef    = useRef('pan');
     const arr = [...selectedIds];
     const node = arr.length===1 ? nodesRef.current.find(n=>n.id===arr[0]) : null;
     window.dispatchEvent(new CustomEvent('nodeselect', { detail: node ?? null }));
-    // Also emit the group containing this node (null if none / multi-select)
-    const containingGroup = node
-      ? (superboxesRef.current.find(sb => (sb.layerIds || []).includes(node.id)) ?? null)
-      : null;
-    window.dispatchEvent(new CustomEvent('groupselect', { detail: containingGroup }));
+    // Emit groupselect for the group containing this node.
+    // If no node selected: only clear group panel when no group was directly
+    // clicked (selectedSuperboxIdRef.current === null), so direct group clicks
+    // don't get immediately overridden by this effect.
+    if (node) {
+      const containingGroup = superboxesRef.current.find(sb => (sb.layerIds || []).includes(node.id)) ?? null;
+      window.dispatchEvent(new CustomEvent('groupselect', { detail: containingGroup }));
+    } else if (selectedSuperboxIdRef.current === null) {
+      window.dispatchEvent(new CustomEvent('groupselect', { detail: null }));
+    }
   }, [selectedIds]);
 
   useEffect(() => {
@@ -1331,6 +1336,15 @@ const toolModeRef    = useRef('pan');
       const sb = superboxesRef.current.find(s => s.id === e.detail.id);
       if (sb) {
         sb.name = e.detail.name;
+        commitSuperboxes();
+        draw();
+      }
+    }
+
+    function onGroupColorUpdate(e) {
+      const sb = superboxesRef.current.find(s => s.id === e.detail.id);
+      if (sb) {
+        sb.colorIdx = e.detail.colorIdx;
         commitSuperboxes();
         draw();
       }
@@ -2464,6 +2478,7 @@ const toolModeRef    = useRef('pan');
     window.addEventListener('tb-save', onSaveArch);
     window.addEventListener('tb-load', onLoadArch);
     window.addEventListener('groupnameupdate', onGroupNameUpdate);
+    window.addEventListener('groupcolorupdate', onGroupColorUpdate);
     stage.addEventListener('mousedown',down);
     stage.addEventListener('wheel',wheel,{passive:false});
     stage.addEventListener('dragover',dragOver);
@@ -2479,6 +2494,7 @@ const toolModeRef    = useRef('pan');
       window.removeEventListener('tb-save', onSaveArch);
       window.removeEventListener('tb-load', onLoadArch);
       window.removeEventListener('groupnameupdate', onGroupNameUpdate);
+    window.removeEventListener('groupcolorupdate', onGroupColorUpdate);
       stage.removeEventListener('mousedown',down);
       stage.removeEventListener('wheel',wheel);
       stage.removeEventListener('dragover',dragOver);
