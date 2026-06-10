@@ -25,7 +25,13 @@ const COLORS = [
   '#f06292', '#f8bbd0', '#a1887f', '#bcaaa4',
 ];
 
-const SUPERBOX_COLORS = ['#4488ff','#ff8844','#44ff88','#ff44ff','#ffff44','#44bbff'];
+const SUPERBOX_COLORS = [
+  '#8d99ae', '#a8a29e', '#9e9e9e', '#bdbdbd',
+  '#ff8a65', '#ffab91', '#ffd54f', '#ffe082',
+  '#81c784', '#a5d6a7', '#4dd0e1', '#81d4fa',
+  '#7986cb', '#9fa8da', '#ba68c8', '#e1bee7',
+  '#f06292', '#f8bbd0', '#a1887f', '#bcaaa4',
+];
 
 export default function RightSidebar() {
   const [node, setNode] = useState(null);
@@ -41,7 +47,6 @@ export default function RightSidebar() {
     const h = (e) => {
       const next = e.detail ? { ...e.detail } : null;
       setNode(next);
-      // group is updated by the groupselect event fired from the same useEffect
       setShapeStr(next?.shape && Array.isArray(next.shape) ? next.shape.join(', ') : '');
     };
     window.addEventListener('nodeselect', h);
@@ -92,7 +97,7 @@ export default function RightSidebar() {
   // the user what they're editing at a glance.
   // Shared toggle for every module that spawns an "out" ghost silhouette.
   // Default = visible (treat undefined as true).
-  const ghostToggle = (node && ['matmul','linear','relu','scale','transpose','softmax','dropout','slice','view','contiguous'].includes(node.type)) ? (
+  const ghostToggle = (node && ['matmul','linear','relu','scale','transpose','softmax','dropout','slice','view','contiguous','layernorm','add','conv2d'].includes(node.type)) ? (
     <div className="mi-field" style={{ flexDirection:'row', alignItems:'center', gap:'8px' }}>
       <input
         type="checkbox"
@@ -116,6 +121,9 @@ export default function RightSidebar() {
     : node.type === 'slice'       ? 'Module Information — Slice'
     : node.type === 'view'        ? 'Module Information — view / reshape'
     : node.type === 'contiguous'  ? 'Module Information — .contiguous()'
+    : node.type === 'add'         ? 'Module Information — torch.add'
+    : node.type === 'layernorm'   ? 'Module Information — nn.LayerNorm'
+    : node.type === 'conv2d'      ? 'Module Information — nn.Conv2d'
     : node.type === 'masked_fill' ? 'Module Information — masked_fill'
     : node.type === 'matmul'    ? 'Module Information — matmul'
     : node.type === 'matrix'    ? `Module Information — ${
@@ -255,6 +263,50 @@ export default function RightSidebar() {
             </div>
             <span className="mi-hint">Output shape = input shape. Factor accepts numbers or variable names.</span>
           </>
+        ) : node.type === 'add' ? (
+          <>
+            <span className="mi-hint">Element-wise sum of N inputs. Connect any number of tensors — all must share the same shape. Output shape = input shape. No learnable parameters.</span>
+          </>
+        ) : node.type === 'layernorm' ? (
+          <>
+            <div className="mi-field">
+              <label className="mi-label">normalized_shape</label>
+              <input
+                className="mi-input"
+                value={String(node.normalized_shape ?? 4)}
+                onChange={e => {
+                  const raw = e.target.value.trim();
+                  const parsed = raw === '' ? '' : (!isNaN(raw) ? Math.max(1, parseInt(raw) || 1) : raw);
+                  update('normalized_shape', parsed);
+                }}
+                placeholder="4"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field" style={{ flexDirection:'row', alignItems:'center', gap:'8px' }}>
+              <input
+                type="checkbox"
+                id="ln-affine"
+                checked={node.elementwise_affine !== false}
+                onChange={e => update('elementwise_affine', e.target.checked)}
+                style={{ accentColor:'#4488ff', width:'16px', height:'16px', cursor:'pointer' }}
+              />
+              <label htmlFor="ln-affine" className="mi-label" style={{ margin:0, cursor:'pointer' }}>elementwise_affine (γ, β)</label>
+            </div>
+            {node.elementwise_affine !== false && (
+              <div className="mi-field" style={{ flexDirection:'row', alignItems:'center', gap:'8px' }}>
+                <input
+                  type="checkbox"
+                  id="ln-bias"
+                  checked={node.ln_bias !== false}
+                  onChange={e => update('ln_bias', e.target.checked)}
+                  style={{ accentColor:'#4488ff', width:'16px', height:'16px', cursor:'pointer' }}
+                />
+                <label htmlFor="ln-bias" className="mi-label" style={{ margin:0, cursor:'pointer' }}>bias (β)</label>
+              </div>
+            )}
+            <span className="mi-hint">nn.LayerNorm(normalized_shape) — normalizes last dim. Output shape = input shape. Learnable γ and β of size normalized_shape.</span>
+          </>
         ) : node.type === 'linear' ? (
           <>
             <div className="mi-field">
@@ -296,6 +348,90 @@ export default function RightSidebar() {
               <label htmlFor="linear-bias" className="mi-label" style={{ margin:0, cursor:'pointer' }}>bias</label>
             </div>
             <span className="mi-hint">Spawns one output matrix per input edge: shape = (…, d_out).</span>
+          </>
+        ) : node.type === 'conv2d' ? (
+          <>
+            <div className="mi-field">
+              <label className="mi-label">in_channels</label>
+              <input
+                className="mi-input"
+                value={String(node.in_channels ?? 1)}
+                onChange={e => { const v = e.target.value.trim(); update('in_channels', v === '' ? '' : Math.max(1, parseInt(v) || 1)); }}
+                placeholder="1"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field">
+              <label className="mi-label">out_channels</label>
+              <input
+                className="mi-input"
+                value={String(node.out_channels ?? 1)}
+                onChange={e => { const v = e.target.value.trim(); update('out_channels', v === '' ? '' : Math.max(1, parseInt(v) || 1)); }}
+                placeholder="1"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field">
+              <label className="mi-label">kernel_size</label>
+              <input
+                className="mi-input"
+                value={String(node.kernel_size ?? 3)}
+                onChange={e => update('kernel_size', e.target.value)}
+                placeholder="3  or  3,5"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field">
+              <label className="mi-label">stride</label>
+              <input
+                className="mi-input"
+                value={String(node.stride ?? 1)}
+                onChange={e => update('stride', e.target.value)}
+                placeholder="1  or  1,2"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field">
+              <label className="mi-label">padding</label>
+              <input
+                className="mi-input"
+                value={String(node.padding ?? 0)}
+                onChange={e => update('padding', e.target.value)}
+                placeholder="0  or  0,1"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field">
+              <label className="mi-label">dilation</label>
+              <input
+                className="mi-input"
+                value={String(node.dilation ?? 1)}
+                onChange={e => update('dilation', e.target.value)}
+                placeholder="1  or  1,2"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field">
+              <label className="mi-label">groups</label>
+              <input
+                className="mi-input"
+                value={String(node.groups ?? 1)}
+                onChange={e => { const v = e.target.value.trim(); update('groups', v === '' ? '' : Math.max(1, parseInt(v) || 1)); }}
+                placeholder="1"
+                spellCheck={false}
+              />
+            </div>
+            <div className="mi-field" style={{ flexDirection:'row', alignItems:'center', gap:'8px' }}>
+              <input
+                type="checkbox"
+                id="conv2d-bias"
+                checked={node.bias !== false}
+                onChange={e => update('bias', e.target.checked)}
+                style={{ accentColor:'#4488ff', width:'16px', height:'16px', cursor:'pointer' }}
+              />
+              <label htmlFor="conv2d-bias" className="mi-label" style={{ margin:0, cursor:'pointer' }}>bias</label>
+            </div>
+            <span className="mi-hint">{'nn.Conv2d — input (N, C_in, H, W). Spatial params accept scalar or "h,w" tuple. H_out = ⌊(H+2p−d(k−1)−1)/s⌋+1. groups=C_in for depthwise.'}</span>
           </>
         ) : node.type === 'view' ? (
           <>
@@ -443,17 +579,18 @@ export default function RightSidebar() {
           </div>
           <div className="mi-field">
             <label className="mi-label">Color</label>
-            <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
+            <div className="mi-colors">
               {SUPERBOX_COLORS.map((c, i) => (
                 <button
                   key={c}
-                  onClick={() => updateGroupColor(i)}
+                  className="mi-color-swatch"
                   style={{
-                    width: '22px', height: '22px', borderRadius: '50%',
-                    background: c, cursor: 'pointer',
-                    border: groupColorIdx === i ? '2.5px solid #ee4c2c' : '2px solid rgba(0,0,0,0.15)',
-                    padding: 0, outline: 'none',
+                    background: c,
+                    border: groupColorIdx === i
+                      ? '2px solid #ee4c2c'
+                      : '2px solid rgba(0,0,0,0.12)',
                   }}
+                  onClick={() => updateGroupColor(i)}
                   title={c}
                 />
               ))}

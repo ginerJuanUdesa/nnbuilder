@@ -87,6 +87,14 @@ export default function LeftSidebar() {
           <span className="pal-name">matmul</span>
           <span className="pal-desc">torch.matmul — A @ B</span>
         </div>
+        <div
+          className="pal-item"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'add')}
+        >
+          <span className="pal-name">Add</span>
+          <span className="pal-desc">torch.add — element-wise sum, N inputs</span>
+        </div>
       </Section>
       <Section title="nn.Modules">
         <div
@@ -100,10 +108,26 @@ export default function LeftSidebar() {
         <div
           className="pal-item"
           draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'conv2d')}
+        >
+          <span className="pal-name">Conv2d</span>
+          <span className="pal-desc">nn.Conv2d(in_ch, out_ch, kernel, stride, padding)</span>
+        </div>
+        <div
+          className="pal-item"
+          draggable
           onDragStart={e => e.dataTransfer.setData('nodeType', 'transpose')}
         >
           <span className="pal-name">Transpose</span>
           <span className="pal-desc">torch.transpose(dim0, dim1)</span>
+        </div>
+        <div
+          className="pal-item"
+          draggable
+          onDragStart={e => e.dataTransfer.setData('nodeType', 'layernorm')}
+        >
+          <span className="pal-name">LayerNorm</span>
+          <span className="pal-desc">nn.LayerNorm(normalized_shape)</span>
         </div>
       </Section>
       <Section title="nn.ActivationFunctions">
@@ -115,6 +139,8 @@ export default function LeftSidebar() {
           <span className="pal-name">ReLU</span>
           <span className="pal-desc">nn.ReLU() — elementwise max(0, x)</span>
         </div>
+      </Section>
+      <Section title="nn.Regularization">
         <div
           className="pal-item"
           draggable

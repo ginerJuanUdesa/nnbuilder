@@ -65,7 +65,13 @@ const SPACING   = 28;
 const MAJOR     = 5;
 const NODE_SIZE = SPACING * 4; // 112 world-units
 
-const SUPERBOX_COLORS = ['#4488ff','#ff8844','#44ff88','#ff44ff','#ffff44','#44bbff'];
+const SUPERBOX_COLORS = [
+  '#8d99ae', '#a8a29e', '#9e9e9e', '#bdbdbd',
+  '#ff8a65', '#ffab91', '#ffd54f', '#ffe082',
+  '#81c784', '#a5d6a7', '#4dd0e1', '#81d4fa',
+  '#7986cb', '#9fa8da', '#ba68c8', '#e1bee7',
+  '#f06292', '#f8bbd0', '#a1887f', '#bcaaa4',
+];
 
 // ── Slot position helpers ──────────────────────────────────────────────────
 
@@ -704,7 +710,7 @@ export default function Grid() {
       for (const c of nextConns) {
         if (c.fromNodeId !== m.id) continue;
         const tn = nextNodes.find(n => n.id === c.toNodeId);
-        if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill' || tn.type === 'dropout' || tn.type === 'slice' || tn.type === 'view' || tn.type === 'contiguous')) {
+        if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill' || tn.type === 'dropout' || tn.type === 'slice' || tn.type === 'view' || tn.type === 'contiguous' || tn.type === 'layernorm' || tn.type === 'add' || tn.type === 'conv2d')) {
           return false;
         }
       }
@@ -794,12 +800,46 @@ export default function Grid() {
         }
         return out;
       }
-      if (src.type === 'linear' || src.type === 'relu' || src.type === 'scale' || src.type === 'transpose' || src.type === 'softmax' || src.type === 'triu' || src.type === 'dropout' || src.type === 'contiguous') {
+      if (src.type === 'add') {
+        const ins = nextConns.filter(c => c.toNodeId === src.id);
+        if (ins.length < 2) { shapeCache && (shapeCache[src.id] = null); return null; }
+        const shapes = ins.map(c => effectiveShape(nextNodes.find(n => n.id === c.fromNodeId), new Set(visited)));
+        if (shapes.some(s => !s)) return null;
+        const refStr = JSON.stringify(shapes[0]);
+        if (!shapes.every(s => JSON.stringify(s) === refStr)) return null;
+        return [...shapes[0]];
+      }
+      if (src.type === 'conv2d') {
+        const ins = nextConns.filter(c => c.toNodeId === src.id);
+        if (!ins.length) return null;
+        const upstream = effectiveShape(nextNodes.find(n => n.id === ins[0].fromNodeId), new Set(visited));
+        if (!upstream || upstream.length !== 4) return null;
+        const inCh = src.in_channels ?? 1;
+        const inChStr = String(inCh);
+        const upCh = String(upstream[1]);
+        const chMatch = upCh === inChStr || (() => {
+          const a = resolveValWithVars(upCh, varsRef.current);
+          const b = resolveValWithVars(inChStr, varsRef.current);
+          return a !== null && b !== null && a === b;
+        })();
+        if (!chMatch) return null;
+        const parseConvParam = (val, def) => { const str = String(val ?? def).replace(/[()[\]\s]/g, ''); const parts = str.split(',').map(s => Number(s.trim())); if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return [parts[0], parts[1]]; const n = Number(parts[0]); return [isNaN(n) ? def : n, isNaN(n) ? def : n]; };
+        const [kH, kW] = parseConvParam(src.kernel_size, 3);
+        const [sH, sW] = parseConvParam(src.stride, 1);
+        const [pH, pW] = parseConvParam(src.padding, 0);
+        const [dH, dW] = parseConvParam(src.dilation, 1);
+        const H = resolveValWithVars(String(upstream[2]), varsRef.current);
+        const W = resolveValWithVars(String(upstream[3]), varsRef.current);
+        const Hout = H !== null ? Math.floor((H + 2 * pH - dH * (kH - 1) - 1) / sH) + 1 : '?';
+        const Wout = W !== null ? Math.floor((W + 2 * pW - dW * (kW - 1) - 1) / sW) + 1 : '?';
+        return [upstream[0], src.out_channels ?? 1, Hout, Wout];
+      }
+      if (src.type === 'linear' || src.type === 'relu' || src.type === 'scale' || src.type === 'transpose' || src.type === 'softmax' || src.type === 'triu' || src.type === 'dropout' || src.type === 'contiguous' || src.type === 'layernorm') {
         const ins = nextConns.filter(c => c.toNodeId === src.id);
         if (!ins.length) return null;
         const upstream = effectiveShape(nextNodes.find(n => n.id === ins[0].fromNodeId), new Set(visited));
         if (!upstream) return null;
-        if (src.type === 'relu' || src.type === 'scale' || src.type === 'softmax' || src.type === 'triu' || src.type === 'dropout' || src.type === 'contiguous') return [...upstream];
+        if (src.type === 'relu' || src.type === 'scale' || src.type === 'softmax' || src.type === 'triu' || src.type === 'dropout' || src.type === 'contiguous' || src.type === 'layernorm') return [...upstream];
         if (src.type === 'transpose') {
           // torch.transpose(input, dim0, dim1) — swap two dims; negatives wrap.
           const L = upstream.length;
@@ -872,7 +912,89 @@ export default function Grid() {
     };
 
     for (const lin of nextNodes) {
-      if (lin.type !== 'linear' && lin.type !== 'relu' && lin.type !== 'scale' && lin.type !== 'transpose' && lin.type !== 'softmax' && lin.type !== 'triu' && lin.type !== 'dropout' && lin.type !== 'slice' && lin.type !== 'view' && lin.type !== 'contiguous') continue;
+      if (lin.type !== 'linear' && lin.type !== 'relu' && lin.type !== 'scale' && lin.type !== 'transpose' && lin.type !== 'softmax' && lin.type !== 'triu' && lin.type !== 'dropout' && lin.type !== 'slice' && lin.type !== 'view' && lin.type !== 'contiguous' && lin.type !== 'layernorm' && lin.type !== 'add' && lin.type !== 'conv2d') continue;
+
+      // ── Add: N inputs → 1 output matrix (all shapes must match) ──────────
+      if (lin.type === 'add') {
+        const despawnAdd = () => {
+          const mats = { ...(lin.matrices || {}) };
+          let changed = false;
+          for (const k of Object.keys(mats)) {
+            const e = mats[k];
+            if (e?.matrixId === undefined) continue;
+            const mi = nextNodes.findIndex(n => n.id === e.matrixId);
+            if (mi !== -1) {
+              const mx = nextNodes[mi];
+              if (mx.name  !== undefined) e.name  = mx.name;
+              if (mx.color !== undefined) e.color = mx.color;
+              nextNodes.splice(mi, 1);
+              for (let i = nextConns.length - 1; i >= 0; i--) {
+                if (nextConns[i].fromNodeId === e.matrixId || nextConns[i].toNodeId === e.matrixId) nextConns.splice(i, 1);
+              }
+            }
+            e.matrixId = undefined;
+            changed = true;
+          }
+          // Always clear _dimError when despawning (covers shape-mismatch → disconnect path)
+          const linIdx = nextNodes.findIndex(n => n.id === lin.id);
+          const hasDimErr = linIdx !== -1 && nextNodes[linIdx]._dimError;
+          if (changed || hasDimErr) {
+            if (linIdx !== -1) nextNodes[linIdx] = { ...lin, matrices: mats, _dimError: undefined };
+            needsUpdate = true;
+          }
+        };
+        if (!isTerminal(lin)) { despawnAdd(); continue; }
+        const inConns = nextConns.filter(c => c.toNodeId === lin.id);
+        if (inConns.length < 2) { despawnAdd(); continue; }
+        const shapes = inConns.map(c => effectiveShape(nextNodes.find(n => n.id === c.fromNodeId)));
+        if (shapes.some(s => !s)) { despawnAdd(); continue; }
+        const refStr = JSON.stringify(shapes[0]);
+        if (!shapes.every(s => JSON.stringify(s) === refStr)) {
+          despawnAdd();
+          const idx = nextNodes.findIndex(n => n.id === lin.id);
+          const uniqueShapes = [...new Set(shapes.map(s => JSON.stringify(s)))].map(s => JSON.parse(s));
+          const shapeStrs = uniqueShapes.map(s => '(' + s.join(', ') + ')').join(' ≠ ');
+          if (idx !== -1) nextNodes[idx] = { ...nextNodes[idx], _dimError: shapeStrs };
+          needsUpdate = true;
+          continue;
+        }
+        // Clear any dim error
+        { const idx = nextNodes.findIndex(n => n.id === lin.id); if (idx !== -1 && nextNodes[idx]._dimError) { nextNodes[idx] = { ...nextNodes[idx], _dimError: undefined }; needsUpdate = true; } }
+        const outShape = shapes[0];
+        const mats = { ...(lin.matrices || {}) };
+        const entry = mats['__add_out__'] || (mats['__add_out__'] = {});
+        // Remove stale keys
+        for (const k of Object.keys(mats)) {
+          if (k !== '__add_out__') {
+            const e = mats[k];
+            if (e?.matrixId !== undefined) { const mi = nextNodes.findIndex(n => n.id === e.matrixId); if (mi !== -1) nextNodes.splice(mi, 1); }
+            delete mats[k]; needsUpdate = true;
+          }
+        }
+        const pos = linearMatrixPosFor(lin, 0);
+        if (entry.matrixId === undefined || !nextNodes.some(n => n.id === entry.matrixId)) {
+          const mxId = idSeed++;
+          entry.matrixId = mxId;
+          nextNodes.push({ id: mxId, type: 'matrix', name: entry.name ?? 'out', color: entry.color ?? undefined, shape: outShape, x: pos.x, y: pos.y, boundLinearId: lin.id, boundLinearConnId: '__add_out__' });
+          needsUpdate = true;
+        } else {
+          const mi = nextNodes.findIndex(n => n.id === entry.matrixId);
+          const mx = nextNodes[mi];
+          if (mx.x !== pos.x || mx.y !== pos.y || JSON.stringify(mx.shape) !== JSON.stringify(outShape)) {
+            nextNodes[mi] = { ...mx, x: pos.x, y: pos.y, shape: outShape };
+            needsUpdate = true;
+          }
+          if (mx.name  !== undefined && entry.name  !== mx.name)  { entry.name  = mx.name;  needsUpdate = true; }
+          if (mx.color !== undefined && entry.color !== mx.color) { entry.color = mx.color; needsUpdate = true; }
+        }
+        if (JSON.stringify(lin.matrices) !== JSON.stringify(mats)) {
+          const idx = nextNodes.findIndex(n => n.id === lin.id);
+          if (idx !== -1) nextNodes[idx] = { ...nextNodes[idx], matrices: mats };
+          needsUpdate = true;
+        }
+        continue;
+      }
+
       // Only the LAST module in a chain spawns matrices. Intermediate
       // modules (those with an outgoing edge to another module) are silent
       // — their transform composes into the terminal's effective shape via
@@ -927,7 +1049,7 @@ export default function Grid() {
         let outShape = null;
         let compat = false;
         if (srcShape) {
-          if (lin.type === 'relu' || lin.type === 'scale' || lin.type === 'softmax' || lin.type === 'triu' || lin.type === 'contiguous') {
+          if (lin.type === 'relu' || lin.type === 'scale' || lin.type === 'softmax' || lin.type === 'triu' || lin.type === 'contiguous' || lin.type === 'layernorm') {
             outShape = [...srcShape];
             compat = true;
           } else if (lin.type === 'transpose') {
@@ -948,6 +1070,34 @@ export default function Grid() {
             // effectiveShape already encodes the full transform for these.
             const computed = effectiveShape(lin);
             if (computed) { outShape = computed; compat = true; }
+          } else if (lin.type === 'conv2d') {
+            if (srcShape.length === 4) {
+              const inCh = lin.in_channels ?? 1;
+              const inChStr = String(inCh);
+              const upCh = String(srcShape[1]);
+              const chMatch = upCh === inChStr || (() => {
+                const a = resolveValWithVars(upCh, varsRef.current);
+                const b = resolveValWithVars(inChStr, varsRef.current);
+                return a !== null && b !== null && a === b;
+              })();
+              if (chMatch) {
+                const parseConvParam = (val, def) => { const str = String(val ?? def).replace(/[()[\]\s]/g, ''); const parts = str.split(',').map(s => Number(s.trim())); if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return [parts[0], parts[1]]; const n = Number(parts[0]); return [isNaN(n) ? def : n, isNaN(n) ? def : n]; };
+                const [kH, kW] = parseConvParam(lin.kernel_size, 3);
+                const [sH, sW] = parseConvParam(lin.stride, 1);
+                const [pH, pW] = parseConvParam(lin.padding, 0);
+                const [dH, dW] = parseConvParam(lin.dilation, 1);
+                const H = resolveValWithVars(String(srcShape[2]), varsRef.current);
+                const W = resolveValWithVars(String(srcShape[3]), varsRef.current);
+                const Hout = H !== null ? Math.floor((H + 2 * pH - dH * (kH - 1) - 1) / sH) + 1 : '?';
+                const Wout = W !== null ? Math.floor((W + 2 * pW - dW * (kW - 1) - 1) / sW) + 1 : '?';
+                outShape = [srcShape[0], lin.out_channels ?? 1, Hout, Wout];
+                compat = true;
+              } else {
+                anyDimMismatch = true;
+              }
+            } else {
+              anyDimMismatch = true;
+            }
           } else if (srcLast !== null) {
             // linear — string compare first, then resolved numeric fallback
             // so symbolic 'd_k'=64 matches numeric d_in=64 and vice versa.
@@ -1019,6 +1169,8 @@ export default function Grid() {
 
       const linError = (lin.type === 'linear' && anyDimMismatch)
         ? `d_in (${dInStr}) ≠ upstream last dim`
+        : (lin.type === 'conv2d' && anyDimMismatch)
+        ? `in_channels (${lin.in_channels ?? 1}) ≠ upstream C or not 4D`
         : null;
       const prevLinError = lin._dimError ?? null;
       if (matricesChanged || linError !== prevLinError) {
@@ -1162,7 +1314,7 @@ const toolModeRef    = useRef('pan');
           const d = Math.hypot(wx-p.x, wy-p.y);
           if (d < minD) { minD = d; best = { node:n, slotId:sid, side:null, pos:p }; }
         }
-      } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') {
+      } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous' || n.type === 'layernorm' || n.type === 'add' || n.type === 'conv2d') {
         // Three input gates: every side except the rot-determined output.
         const outSide = rotToOutSide(n.rot);
         for (const side of ALL_SIDES) {
@@ -1227,13 +1379,11 @@ const toolModeRef    = useRef('pan');
     const arr = [...selectedIds];
     const node = arr.length===1 ? nodesRef.current.find(n=>n.id===arr[0]) : null;
     window.dispatchEvent(new CustomEvent('nodeselect', { detail: node ?? null }));
-    // Emit groupselect for the group containing this node.
-    // If no node selected: only clear group panel when no group was directly
-    // clicked (selectedSuperboxIdRef.current === null), so direct group clicks
-    // don't get immediately overridden by this effect.
+    // Node click → always clear group panel and deselect superbox.
+    // Group panel only shown when user directly clicks group background (canvas down() path).
     if (node) {
-      const containingGroup = superboxesRef.current.find(sb => (sb.layerIds || []).includes(node.id)) ?? null;
-      window.dispatchEvent(new CustomEvent('groupselect', { detail: containingGroup }));
+      selectedSuperboxIdRef.current = null;
+      window.dispatchEvent(new CustomEvent('groupselect', { detail: null }));
     } else if (selectedSuperboxIdRef.current === null) {
       window.dispatchEvent(new CustomEvent('groupselect', { detail: null }));
     }
@@ -1324,6 +1474,18 @@ const toolModeRef    = useRef('pan');
           const dOut = resolveD(n.d_out, 4);
           if (dIn === null || dOut === null) { paramsValid = false; break; }
           totalParams += dIn * dOut + (n.bias !== false ? dOut : 0);
+        } else if (n.type === 'layernorm' && n.elementwise_affine !== false) {
+          const ns = resolveD(n.normalized_shape, 4);
+          if (ns === null) { paramsValid = false; break; }
+          totalParams += ns + (n.ln_bias !== false ? ns : 0);
+        } else if (n.type === 'conv2d') {
+          const inCh  = resolveD(n.in_channels,  1);
+          const outCh = resolveD(n.out_channels, 1);
+          const g     = resolveD(n.groups,       1);
+          if (inCh === null || outCh === null || g === null) { paramsValid = false; break; }
+          const parseK = (val, def) => { const str = String(val ?? def).replace(/[()[\]\s]/g, ''); const parts = str.split(',').map(s => Number(s.trim())); if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return parts[0] * parts[1]; const n = Number(parts[0]); return isNaN(n) ? def * def : n * n; };
+          const kArea = parseK(n.kernel_size, 3);
+          totalParams += outCh * (inCh / g) * kArea + (n.bias !== false ? outCh : 0);
         }
       }
       window.dispatchEvent(new CustomEvent('worldinfo',{ detail:{x:cx,y:cy,zoom:cam.zoom,fps,params:paramsValid ? totalParams : null} }));
@@ -1509,25 +1671,23 @@ const toolModeRef    = useRef('pan');
           const sbR = 10 * dpr; // rounded corner radius
           if (sb.bgVisible !== false) {
             ctx.save();
-            ctx.globalAlpha = 0.08;
+            ctx.globalAlpha = 0.24;
             ctx.fillStyle = color;
             ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, sbR); ctx.fill();
             ctx.restore();
           }
-          // border
+          // border — solid, no dash
           ctx.save();
-          ctx.globalAlpha = isSelected ? 0.9 : 0.45;
+          ctx.globalAlpha = 1.0;
           ctx.strokeStyle = color;
-          ctx.lineWidth = isSelected ? 2 * dpr : 1 * dpr;
-          if (!isSelected) ctx.setLineDash([6, 4]);
+          ctx.lineWidth = isSelected ? 4 * dpr : 2.5 * dpr;
           ctx.beginPath(); ctx.roundRect(sx, sy, sw, sh, sbR); ctx.stroke();
-          ctx.setLineDash([]);
           ctx.restore();
-          // label + eye button
+          // label + eye button — pure zoom scaling, same as module divs
           if (cam.zoom > 0.3) {
             const depth = _depth(sb.id);
-            const fontSize = Math.max(11, (14 - depth * 2) * cam.zoom) * dpr;
-            const indent = depth * Math.max(8, 10 * cam.zoom) * dpr;
+            const fontSize = (36 - depth * 4) * cam.zoom * dpr;
+            const indent = depth * 10 * cam.zoom * dpr;
             ctx.save();
             ctx.font = `bold ${fontSize}px monospace`;
             ctx.fillStyle = color;
@@ -1698,12 +1858,12 @@ const toolModeRef    = useRef('pan');
         for (const c of connectionsRef.current) {
           if (c.fromNodeId !== m.id) continue;
           const tn = nodesRef.current.find(n => n.id === c.toNodeId);
-          if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill' || tn.type === 'dropout' || tn.type === 'slice' || tn.type === 'view' || tn.type === 'contiguous')) return false;
+          if (tn && (tn.type === 'linear' || tn.type === 'relu' || tn.type === 'scale' || tn.type === 'transpose' || tn.type === 'softmax' || tn.type === 'triu' || tn.type === 'matmul' || tn.type === 'masked_fill' || tn.type === 'dropout' || tn.type === 'slice' || tn.type === 'view' || tn.type === 'contiguous' || tn.type === 'layernorm' || tn.type === 'add' || tn.type === 'conv2d')) return false;
         }
         return true;
       };
       for (const node of nodesRef.current) {
-        if (node.type !== 'linear' && node.type !== 'relu' && node.type !== 'scale' && node.type !== 'transpose' && node.type !== 'softmax' && node.type !== 'triu' && node.type !== 'dropout' && node.type !== 'slice' && node.type !== 'view' && node.type !== 'contiguous') continue;
+        if (node.type !== 'linear' && node.type !== 'relu' && node.type !== 'scale' && node.type !== 'transpose' && node.type !== 'softmax' && node.type !== 'triu' && node.type !== 'dropout' && node.type !== 'slice' && node.type !== 'view' && node.type !== 'contiguous' && node.type !== 'layernorm' && node.type !== 'add' && node.type !== 'conv2d') continue;
         if (node.showGhost === false) continue;
         if (!_isTerminalDraw(node)) continue;
         const outPos = getOutputSlotPos(node);
@@ -1788,7 +1948,7 @@ const toolModeRef    = useRef('pan');
           drawSlotDot(pX.x, pX.y, false);
           drawSlotDot(pM.x, pM.y, false);
           drawSlotDot(po.x, po.y, true);
-        } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') {
+        } else if (n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous' || n.type === 'layernorm' || n.type === 'add' || n.type === 'conv2d') {
           const outSide = rotToOutSide(n.rot);
           for (const side of ALL_SIDES) {
             if (side === outSide) continue;
@@ -1808,15 +1968,26 @@ const toolModeRef    = useRef('pan');
         drawArrow(ctx, a.a, a.b, cam, z, a.color, dpr);
       }
 
-      // pending connection rubber-band
+      // pending connection rubber-band — draws through manually placed vertices
       const pc = pendingConnRef.current;
       if (pc) {
         const fn = nodesRef.current.find(n=>n.id===pc.fromNodeId);
         if (fn) {
           const src = pc.fromSide ? sideToPos(fn, pc.fromSide) : getOutputSlotPos(fn);
           const dst = { x:pc.mouseX, y:pc.mouseY };
-          const pts = [src, ...autoRoute(src,dst), dst];
+          const pts = [src, ...(pc.vertices || []), dst];
           drawPolyline(ctx, pts, cam, z, 'rgba(238,76,44,0.75)', 1.5*dpr, true);
+          // draw small dot at each placed vertex
+          for (const v of (pc.vertices || [])) {
+            const vx = (v.x - cam.x) * z, vy = (v.y - cam.y) * z;
+            ctx.save();
+            ctx.fillStyle = '#ee4c2c';
+            ctx.globalAlpha = 0.9;
+            ctx.beginPath();
+            ctx.arc(vx, vy, 4 * dpr, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
         }
       }
 
@@ -1886,6 +2057,9 @@ const toolModeRef    = useRef('pan');
       const sbEdgeHit = hitTestSuperboxEdge(wx, wy);
       if (sbEdgeHit) {
         const { sb, edge } = sbEdgeHit;
+        // Anchor pre-resize snapshot (same coalesce-avoidance as SB drag).
+        lastSnapRef.current = JSON.stringify({ nodes: nodesRef.current, connections: connectionsRef.current, superboxes: superboxesRef.current });
+        lastSnapTimeRef.current = Date.now() - 500;
         selectedSuperboxIdRef.current = sb.id;
         emitGroupSelect(sb);
         sbResizingRef.current    = true;
@@ -1897,51 +2071,44 @@ const toolModeRef    = useRef('pan');
         draw(); return;
       }
 
-      // ── Connect mode ── (bypass superbox body so panning still works in connect mode)
-      if (toolModeRef.current==='connect') {
+      // ── Pending connection (any mode): canvas click adds vertex or completes ──
+      if (pendingConnRef.current) {
         const pc = pendingConnRef.current;
-        if (!pc) {
-          // Find nearest node; start from clicked side
-          let nearNode = null, minD = Infinity;
-          for (const n of nodesRef.current) {
-            const cx = Math.max(n.x, Math.min(n.x + NODE_SIZE, wx));
-            const cy = Math.max(n.y, Math.min(n.y + NODE_SIZE, wy));
-            const d = Math.hypot(wx - cx, wy - cy);
-            if (d < minD) { minD = d; nearNode = n; }
-          }
-          if (nearNode && minD < 20) {
-            // All modules (matmul, linear, relu, scale, transpose) sprout
-            // from any side via closestSide. Connecting a module's output
-            // into another module appends to the chain — the upstream
-            // suppresses its own matrix in favor of the chain tail.
-            const fromSide = (nearNode.type === 'matrix' || nearNode.type === 'linear' || nearNode.type === 'relu' || nearNode.type === 'scale' || nearNode.type === 'transpose' || nearNode.type === 'softmax' || nearNode.type === 'triu' || nearNode.type === 'matmul' || nearNode.type === 'masked_fill' || nearNode.type === 'dropout' || nearNode.type === 'slice' || nearNode.type === 'view' || nearNode.type === 'contiguous')
-              ? closestSide(nearNode, wx, wy)
-              : null;
-            pendingConnRef.current = { fromNodeId: nearNode.id, fromSide, mouseX: wx, mouseY: wy };
-            draw();
-          }
+        const slot = findNearestInputSlot(wx, wy, pc.fromNodeId);
+        if (slot) {
+          const fn = nodesRef.current.find(n => n.id === pc.fromNodeId);
+          const conn = {
+            id: Date.now(), fromNodeId: fn.id, fromSlotId: 'out',
+            ...(pc.fromSide ? { fromSide: pc.fromSide } : {}),
+            toNodeId: slot.node.id, toSlotId: slot.slotId,
+            ...(slot.side ? { toSide: slot.side } : {}),
+            vertices: pc.vertices || [],
+          };
+          setConnectionsRef.current(prev => [...prev, conn]);
+          pendingConnRef.current = null;
+          window.dispatchEvent(new CustomEvent('toolchange', { detail: 'pan' }));
         } else {
-          const slot = findNearestInputSlot(wx,wy,pc.fromNodeId);
-          let completed = false;
-          if (slot) {
-            const fn = nodesRef.current.find(n=>n.id===pc.fromNodeId);
-            const src = pc.fromSide ? sideToPos(fn, pc.fromSide) : getOutputSlotPos(fn);
-            const dst = slot.side ? sideToPos(slot.node, slot.side) : getInputSlotPos(slot.node,slot.slotId);
-            const verts = autoRoute(src,dst);
-            const conn = {
-              id:Date.now(), fromNodeId:fn.id, fromSlotId:'out',
-              ...(pc.fromSide ? {fromSide:pc.fromSide} : {}),
-              toNodeId:slot.node.id, toSlotId:slot.slotId,
-              ...(slot.side ? { toSide: slot.side } : {}),
-              vertices:verts,
-            };
-            setConnectionsRef.current(prev=>[...prev,conn]);
-            completed = true;
-          }
-          pendingConnRef.current=null;
-          // Drop back to pan tool once the connection lands so the user
-          // doesn't accidentally start another conn on the next click.
-          if (completed) window.dispatchEvent(new CustomEvent('toolchange', { detail: 'pan' }));
+          // Click on empty grid → add vertex at snapped position
+          const snapped = { x: Math.round(wx / SPACING) * SPACING, y: Math.round(wy / SPACING) * SPACING };
+          pendingConnRef.current = { ...pc, vertices: [...(pc.vertices || []), snapped] };
+        }
+        draw(); return;
+      }
+
+      // ── Connect mode ── start a connection by clicking near a node on canvas
+      if (toolModeRef.current==='connect') {
+        let nearNode = null, minD = Infinity;
+        for (const n of nodesRef.current) {
+          const ncx = Math.max(n.x, Math.min(n.x + NODE_SIZE, wx));
+          const ncy = Math.max(n.y, Math.min(n.y + NODE_SIZE, wy));
+          const d = Math.hypot(wx - ncx, wy - ncy);
+          if (d < minD) { minD = d; nearNode = n; }
+        }
+        if (nearNode && minD < 20) {
+          const fromSide = (nearNode.type === 'matrix' || nearNode.type === 'linear' || nearNode.type === 'relu' || nearNode.type === 'scale' || nearNode.type === 'transpose' || nearNode.type === 'softmax' || nearNode.type === 'triu' || nearNode.type === 'matmul' || nearNode.type === 'masked_fill' || nearNode.type === 'dropout' || nearNode.type === 'slice' || nearNode.type === 'view' || nearNode.type === 'contiguous' || nearNode.type === 'layernorm' || nearNode.type === 'add')
+            ? closestSide(nearNode, wx, wy)
+            : null;
+          pendingConnRef.current = { fromNodeId: nearNode.id, fromSide, mouseX: wx, mouseY: wy, vertices: [] };
           draw();
         }
         return;
@@ -1964,15 +2131,39 @@ const toolModeRef    = useRef('pan');
       // ── Superbox body (drag / select) — pan mode only ──
       const sbHit = hitTestSuperbox(wx, wy);
       if (sbHit) {
-        selectedSuperboxIdRef.current = sbHit.id;
-        setSelectedIdsRef.current(new Set());
-        setSelectedConnIdsRef.current(new Set());
-        emitGroupSelect(sbHit);
-        sbDraggingRef.current = true;
-        sbDragIdRef.current   = sbHit.id;
-        sbDragOffRef.current  = { x: wx - sbHit.x, y: wy - sbHit.y };
-        stage.style.cursor = 'move';
-        draw(); return;
+        // Connection lines take priority — skip group drag if click is near a line
+        const CONN_THRESH = 8;
+        let nearConn = false;
+        for (const conn of connectionsRef.current) {
+          const fn = nodesRef.current.find(n => n.id === conn.fromNodeId);
+          const tn = nodesRef.current.find(n => n.id === conn.toNodeId);
+          if (!fn || !tn) continue;
+          const pts = [getOutputSlotPos(fn), ...(conn.vertices || []), getConnInputPos(tn, conn)];
+          for (let i = 0; i < pts.length - 1; i++) {
+            if (distToSegment(wx, wy, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y) < CONN_THRESH) {
+              nearConn = true; break;
+            }
+          }
+          if (nearConn) break;
+        }
+        if (!nearConn) {
+          // Anchor lastSnapRef to the pre-drag state so the snapshot effect (fired
+          // after up() commits all moves) correctly pushes this as the undo entry.
+          // Also rewind lastSnapTimeRef so the 200ms coalesce window doesn't swallow it.
+          const preDragSnap = JSON.stringify({ nodes: nodesRef.current, connections: connectionsRef.current, superboxes: superboxesRef.current });
+          lastSnapRef.current = preDragSnap;
+          lastSnapTimeRef.current = Date.now() - 500;
+          selectedSuperboxIdRef.current = sbHit.id;
+          setSelectedIdsRef.current(new Set());
+          setSelectedConnIdsRef.current(new Set());
+          emitGroupSelect(sbHit);
+          sbDraggingRef.current = true;
+          sbDragIdRef.current   = sbHit.id;
+          sbDragOffRef.current  = { x: wx - sbHit.x, y: wy - sbHit.y };
+          stage.style.cursor = 'move';
+          draw(); return;
+        }
+        // Near a connection inside group — fall through; onClick will select it
       }
 
       // Deselect superbox when clicking empty canvas
@@ -2306,7 +2497,7 @@ const toolModeRef    = useRef('pan');
         const fullSel = new Set(sel);
         for (const n of nodesRef.current) {
           if ((n.type === 'matmul' || n.type === 'masked_fill') && n.matrixId !== undefined && fullSel.has(n.id)) fullSel.add(n.matrixId);
-          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') && n.matrices && fullSel.has(n.id)) {
+          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous' || n.type === 'layernorm' || n.type === 'add') && n.matrices && fullSel.has(n.id)) {
             for (const e of Object.values(n.matrices)) {
               if (e?.matrixId !== undefined) fullSel.add(e.matrixId);
             }
@@ -2329,7 +2520,7 @@ const toolModeRef    = useRef('pan');
         const fullSel = new Set(sel);
         for (const n of nodesRef.current) {
           if ((n.type === 'matmul' || n.type === 'masked_fill') && n.matrixId !== undefined && fullSel.has(n.id)) fullSel.add(n.matrixId);
-          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous') && n.matrices && fullSel.has(n.id)) {
+          if ((n.type === 'linear' || n.type === 'relu' || n.type === 'scale' || n.type === 'transpose' || n.type === 'softmax' || n.type === 'triu' || n.type === 'dropout' || n.type === 'slice' || n.type === 'view' || n.type === 'contiguous' || n.type === 'layernorm' || n.type === 'add') && n.matrices && fullSel.has(n.id)) {
             for (const e of Object.values(n.matrices)) {
               if (e?.matrixId !== undefined) fullSel.add(e.matrixId);
             }
@@ -2370,6 +2561,15 @@ const toolModeRef    = useRef('pan');
           d_in: 4, d_out: 4, bias: true,
           ...pos,
         };
+      } else if (nodeType === 'conv2d') {
+        nn = {
+          id: Date.now(), type: 'conv2d',
+          in_channels: 1, out_channels: 1,
+          kernel_size: 3, stride: 1, padding: 0,
+          dilation: 1, groups: 1,
+          bias: true,
+          ...pos,
+        };
       } else if (nodeType === 'view') {
         nn = { id: Date.now(), type: 'view', shape: '-1', ...pos };
       } else if (nodeType === 'dropout') {
@@ -2378,6 +2578,10 @@ const toolModeRef    = useRef('pan');
         nn = { id: Date.now(), type: 'slice', dims: ':', ...pos };
       } else if (nodeType === 'contiguous') {
         nn = { id: Date.now(), type: 'contiguous', ...pos };
+      } else if (nodeType === 'add') {
+        nn = { id: Date.now(), type: 'add', ...pos };
+      } else if (nodeType === 'layernorm') {
+        nn = { id: Date.now(), type: 'layernorm', normalized_shape: 4, elementwise_affine: true, ln_bias: true, ...pos };
       } else if (nodeType === 'relu') {
         nn = { id: Date.now(), type: 'relu', ...pos };
       } else if (nodeType === 'scale') {
@@ -2506,6 +2710,69 @@ const toolModeRef    = useRef('pan');
   function handleNodeMouseDown(e, node) {
     e.stopPropagation();
 
+    // World coords — needed before any mode check
+    const cam = camRef.current;
+    const stageEl = canvasRef.current?.parentElement;
+    const r = stageEl?.getBoundingClientRect();
+    const wx = r ? cam.x + (e.clientX - r.left) / cam.zoom : node.x + NODE_SIZE / 2;
+    const wy = r ? cam.y + (e.clientY - r.top)  / cam.zoom : node.y + NODE_SIZE / 2;
+
+    // ── Complete pending connection (any mode) ───────────────────────────
+    const pcEarly = pendingConnRef.current;
+    if (pcEarly && toolModeRef.current !== 'rotate') {
+      if (pcEarly.fromNodeId !== node.id && node.type !== 'matrix') {
+        let bestSlot = 'in', bestSide = null;
+        if (node.type === 'matmul' || node.type === 'masked_fill') {
+          const slots = node.type === 'matmul' ? ['A','B'] : ['x','mask'];
+          let bestD = Infinity;
+          for (const sid of slots) {
+            const p = getInputSlotPos(node, sid);
+            const d = Math.hypot(wx - p.x, wy - p.y);
+            if (d < bestD) { bestD = d; bestSlot = sid; }
+          }
+        } else {
+          const outSide = rotToOutSide(node.rot);
+          let bestD = Infinity;
+          for (const side of ALL_SIDES) {
+            if (side === outSide) continue;
+            const p = sideToPos(node, side);
+            const d = Math.hypot(wx - p.x, wy - p.y);
+            if (d < bestD) { bestD = d; bestSide = side; }
+          }
+        }
+        const fn = nodesRef.current.find(n => n.id === pcEarly.fromNodeId);
+        const conn = {
+          id: Date.now(), fromNodeId: fn.id, fromSlotId: 'out',
+          ...(pcEarly.fromSide ? { fromSide: pcEarly.fromSide } : {}),
+          toNodeId: node.id, toSlotId: bestSlot,
+          ...(bestSide ? { toSide: bestSide } : {}),
+          vertices: pcEarly.vertices || [],
+        };
+        setConnectionsRef.current(prev => [...prev, conn]);
+        pendingConnRef.current = null;
+        window.dispatchEvent(new CustomEvent('toolchange', { detail: 'pan' }));
+        drawRef.current?.();
+        return;
+      }
+      // clicked source node again — cancel
+      pendingConnRef.current = null;
+      drawRef.current?.();
+      return;
+    }
+
+    // ── Start connection from output slot in pan/select mode ─────────────
+    if ((toolModeRef.current === 'pan' || toolModeRef.current === 'select') && !pendingConnRef.current) {
+      const outPos = getOutputSlotPos(node);
+      if (Math.hypot(wx - outPos.x, wy - outPos.y) < SPACING) {
+        const fromSide = (node.type === 'matrix' || node.type === 'linear' || node.type === 'relu' || node.type === 'scale' || node.type === 'transpose' || node.type === 'softmax' || node.type === 'triu' || node.type === 'matmul' || node.type === 'masked_fill' || node.type === 'dropout' || node.type === 'slice' || node.type === 'view' || node.type === 'contiguous' || node.type === 'layernorm' || node.type === 'add')
+          ? closestSide(node, wx, wy)
+          : null;
+        pendingConnRef.current = { fromNodeId: node.id, fromSide, mouseX: wx, mouseY: wy, vertices: [] };
+        drawRef.current?.();
+        return;
+      }
+    }
+
     // rotate mode: click to rotate 90° CW and re-route connections
     if (toolModeRef.current === 'rotate') {
       const nextNodes = nodesRef.current.map(n =>
@@ -2523,69 +2790,14 @@ const toolModeRef    = useRef('pan');
       return;
     }
 
-    // connect mode: click node body to start/complete connection
+    // connect mode: click node body to start connection
+    // (completion is handled by the early-return block above, any mode)
     if (toolModeRef.current === 'connect') {
-      const cam = camRef.current;
-      const stageEl = canvasRef.current?.parentElement;
-      const r = stageEl?.getBoundingClientRect();
-      const wx = r ? cam.x + (e.clientX - r.left) / cam.zoom : node.x + NODE_SIZE / 2;
-      const wy = r ? cam.y + (e.clientY - r.top)  / cam.zoom : node.y + NODE_SIZE / 2;
-
-      const pc = pendingConnRef.current;
-      if (!pc) {
-        // All modules originate edges into other modules — chain semantics
-        // suppress the upstream matrix once it has a downstream module hop.
-        // Matrix / linear / relu: remember which side was clicked so conn
-        // sprouts from that edge. Other module sources fall back to the
-        // rot-determined output slot.
-        const fromSide = (node.type === 'matrix' || node.type === 'linear' || node.type === 'relu' || node.type === 'scale' || node.type === 'transpose' || node.type === 'softmax' || node.type === 'triu' || node.type === 'matmul' || node.type === 'masked_fill')
-          ? closestSide(node, wx, wy)
-          : null;
-        pendingConnRef.current = { fromNodeId: node.id, fromSide, mouseX: wx, mouseY: wy };
-        drawRef.current?.();
-      } else {
-        if (pc.fromNodeId !== node.id && node.type !== 'matrix') {
-          // Pick target input slot:
-          //   matmul → nearest of A/B by slot position
-          //   linear/relu → side closest to click (any side except output)
-          let bestSlot = 'in', bestSide = null, dst;
-          if (node.type === 'matmul' || node.type === 'masked_fill') {
-            const slots = node.type === 'matmul' ? ['A','B'] : ['x','mask'];
-            let bestD = Infinity;
-            for (const sid of slots) {
-              const p = getInputSlotPos(node, sid);
-              const d = Math.hypot(wx - p.x, wy - p.y);
-              if (d < bestD) { bestD = d; bestSlot = sid; }
-            }
-            dst = getInputSlotPos(node, bestSlot);
-          } else {
-            const outSide = rotToOutSide(node.rot);
-            let bestD = Infinity;
-            for (const side of ALL_SIDES) {
-              if (side === outSide) continue;
-              const p = sideToPos(node, side);
-              const d = Math.hypot(wx - p.x, wy - p.y);
-              if (d < bestD) { bestD = d; bestSide = side; }
-            }
-            dst = sideToPos(node, bestSide);
-          }
-          const fn = nodesRef.current.find(n => n.id === pc.fromNodeId);
-          const src = pc.fromSide ? sideToPos(fn, pc.fromSide) : getOutputSlotPos(fn);
-          const verts = autoRoute(src, dst);
-          const conn = {
-            id: Date.now(), fromNodeId: fn.id, fromSlotId: 'out',
-            ...(pc.fromSide ? {fromSide:pc.fromSide} : {}),
-            toNodeId: node.id, toSlotId: bestSlot,
-            ...(bestSide ? { toSide: bestSide } : {}),
-            vertices: verts,
-          };
-          setConnectionsRef.current(prev => [...prev, conn]);
-          pendingConnRef.current = null;
-          // Drop back to pan tool after the conn lands.
-          window.dispatchEvent(new CustomEvent('toolchange', { detail: 'pan' }));
-          drawRef.current?.();
-        }
-      }
+      const fromSide = (node.type === 'matrix' || node.type === 'linear' || node.type === 'relu' || node.type === 'scale' || node.type === 'transpose' || node.type === 'softmax' || node.type === 'triu' || node.type === 'matmul' || node.type === 'masked_fill' || node.type === 'dropout' || node.type === 'slice' || node.type === 'view' || node.type === 'contiguous' || node.type === 'layernorm' || node.type === 'add')
+        ? closestSide(node, wx, wy)
+        : null;
+      pendingConnRef.current = { fromNodeId: node.id, fromSide, mouseX: wx, mouseY: wy, vertices: [] };
+      drawRef.current?.();
       return;
     }
 
@@ -2601,8 +2813,7 @@ const toolModeRef    = useRef('pan');
     }
     setSelectedIds(nextSel);
 
-    // drag selected nodes
-    const cam=camRef.current;
+    // drag selected nodes (cam already declared at top of handleNodeMouseDown)
     const startX=e.clientX, startY=e.clientY;
     const snapshot=nodesRef.current
       .filter(n=>nextSel.has(n.id))
@@ -2670,6 +2881,7 @@ const toolModeRef    = useRef('pan');
           if (hit) break;
         }
         if (hit) {
+          selectedSuperboxIdRef.current = null;
           setSelectedConnIds(new Set([hit.id]));
           setSelectedIds(new Set());
         } else {
@@ -2698,7 +2910,7 @@ const toolModeRef    = useRef('pan');
           // Resolve every variable in one pass so each row can show its
           // computed value next to the raw expression. Refs like "A+B" or
           // "floor(sqrt(N))" surface their evaluated number on the right.
-          const resolved = resolveVars(vars, nodesRef.current);
+          const resolved = resolveVars(vars, nodes);
           return (
             <>
               {vars.length===0 && <div className="vars-empty">No variables yet</div>}
@@ -2742,7 +2954,7 @@ const toolModeRef    = useRef('pan');
             // Body color is rendered by a ::before pseudo-element (see CSS)
             // so slot dots can sit BEHIND the body via z-index: -1 while
             // still painting above the canvas grid.
-            '--node-bg': (node.type==='matmul' || node.type==='linear' || node.type==='relu' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu' || node.type==='masked_fill' || node.type==='dropout' || node.type==='slice' || node.type==='view' || node.type==='contiguous') ? '#e4e4e4'
+            '--node-bg': (node.type==='matmul' || node.type==='linear' || node.type==='relu' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu' || node.type==='masked_fill' || node.type==='dropout' || node.type==='slice' || node.type==='view' || node.type==='contiguous' || node.type==='layernorm' || node.type==='add' || node.type==='conv2d') ? '#e4e4e4'
                         : (node.color??'#ffffff'),
           }}
           onMouseDown={e=>handleNodeMouseDown(e,node)}
@@ -2754,7 +2966,7 @@ const toolModeRef    = useRef('pan');
               <MatrixDims text={'(' + (node.shape ?? [4, 4]).join(', ') + ')'} />
             </>
           )}
-          {(node.type==='relu' || node.type==='linear' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu') && null /* slot dots rendered below */}
+          {(node.type==='relu' || node.type==='linear' || node.type==='scale' || node.type==='transpose' || node.type==='softmax' || node.type==='triu' || node.type==='layernorm' || node.type==='add') && null /* slot dots rendered below */}
           {node.type==='triu' && (() => {
             const rot = node.rot ?? 0;
             const outSide = rotToOutSide(rot);
@@ -2917,7 +3129,7 @@ const toolModeRef    = useRef('pan');
                   <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
                 ))}
                 <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
-                <ModuleName color="#ee4c2c">Linear</ModuleName>
+                <ModuleName color="#4488ff">Linear</ModuleName>
                 <div style={{ display:'block', width:'100%', textAlign:'center' }}>
                   <MatrixDims text={`W(${node.d_in ?? 4}, ${node.d_out ?? 4})`} />
                 </div>
@@ -2926,6 +3138,73 @@ const toolModeRef    = useRef('pan');
                     <MatrixDims text={`b(${node.d_out ?? 4})`} />
                   </div>
                 )}
+              </>
+            );
+          })()}
+          {node.type==='conv2d' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            const inCh = node.in_channels ?? 1;
+            const outCh = node.out_channels ?? 1;
+            const g = node.groups ?? 1;
+            const parseKR = (val, def) => { const str = String(val ?? def).replace(/[()[\]\s]/g, ''); const parts = str.split(',').map(s => Number(s.trim())); if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) return [parts[0], parts[1]]; const n = Number(parts[0]); return [isNaN(n) ? def : n, isNaN(n) ? def : n]; };
+            const [kH, kW] = parseKR(node.kernel_size, 3);
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color={node._dimError ? '#c0392b' : '#4488ff'}>Conv2d</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  {node._dimError ? (
+                    <MatrixDims text="⚠ error" />
+                  ) : (
+                    <MatrixDims text={`W(${outCh},${g > 1 ? Math.round(inCh/g) : inCh},${kH},${kW})${g > 1 ? `×${g}` : ''}`} />
+                  )}
+                </div>
+                {!node._dimError && node.bias !== false && (
+                  <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                    <MatrixDims text={`b(${outCh})`} />
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          {node.type==='add' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color={node._dimError ? '#c0392b' : '#ee4c2c'}>Add</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  {node._dimError ? (
+                    <MatrixDims text="⚠ error" />
+                  ) : (
+                    <MatrixDims text="x₁ + x₂ + …" />
+                  )}
+                </div>
+              </>
+            );
+          })()}
+          {node.type==='layernorm' && (() => {
+            const rot = node.rot ?? 0;
+            const outSide = rotToOutSide(rot);
+            const ns = node.normalized_shape ?? 4;
+            return (
+              <>
+                {ALL_SIDES.filter(s => s !== outSide).map(side => (
+                  <div key={side} className="node-slot node-slot-in" style={sideSlotStyle(side)}/>
+                ))}
+                <div className="node-slot node-slot-out" style={outSlotStyle(rot)}/>
+                <ModuleName color="#4488ff">LayerNorm</ModuleName>
+                <div style={{ display:'block', width:'100%', textAlign:'center' }}>
+                  <MatrixDims text={`(${ns},)`} />
+                </div>
               </>
             );
           })()}
